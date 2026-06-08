@@ -14,7 +14,7 @@ local attached = {}
 -- ── Public API ────────────────────────────────────────────────────────────────
 
 ---@class tomltools.LspStartOpts
----@field schema         (table|fun(buf: integer, uri: string): table)?
+---@field schema         (fun(buf: integer, uri: string): table)?
 ---@field commands       table?   caller-supplied vim.lsp.commands handlers
 ---@field debug_commands boolean? enable debug dump LSP requests
 
@@ -41,20 +41,15 @@ function M.start(buf, opts)
         init_options = { debug_commands = debug_commands },
         root_dir     = vim.fn.getcwd(),
 
-        -- The server sends tomltools/getSchema for each opened document.
-        -- This handler resolves the schema (static table or dynamic function)
-        -- and returns it as JSON; the return value is automatically sent as
-        -- the JSON-RPC response by Neovim's LSP client.
-        handlers = {
-            ["tomltools/getSchema"] = function(_, params, _ctx)
-                local uri   = params and params.uri or ""
-                local bufnr = vim.uri_to_bufnr(uri)
-                local s = type(schema) == "function"
-                    and schema(bufnr, uri)
-                    or  schema
-                return { schema = vim.json.encode(s or {}) }
-            end,
-        },
+        -- Push the schema to the server as soon as it attaches to a buffer.
+        on_attach = function(client, bufnr)
+            local uri = vim.uri_from_bufnr(bufnr)
+            local s   = schema and schema(bufnr, uri) or nil
+            client:notify("tomltools/setSchema", {
+                uri    = uri,
+                schema = vim.json.encode(s or {}),
+            })
+        end,
     }
 
     local client_id = vim.lsp.start(config, { bufnr = buf })

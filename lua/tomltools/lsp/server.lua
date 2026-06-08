@@ -42,12 +42,9 @@ end
 
 -- ── Server state ─────────────────────────────────────────────────────────────
 ---@type table<string, tomltools.LspBufferContext>
-local documents    = {}   -- uri → context
+local documents  = {}   -- uri → context
 ---@type table<string, table>
-local schemas      = {}   -- uri → decoded schema table
----@type table<integer, fun(err: any, result: any)>
-local pending_reqs = {}   -- outgoing req id → callback
-local _req_id      = 0    -- outgoing request counter
+local schemas    = {}   -- uri → decoded schema table
 local debug_commands = false
 
 -- ── Capabilities ─────────────────────────────────────────────────────────────
@@ -145,17 +142,6 @@ local function ensure_parsed(uri)
     end
 end
 
--- ── Outgoing server→client request ───────────────────────────────────────────
-
----@param method string
----@param params table
----@param cb     fun(err: any, result: any)
-local function send_request(method, params, cb)
-    _req_id = _req_id + 1
-    pending_reqs[_req_id] = cb
-    write_msg({ jsonrpc = "2.0", id = _req_id, method = method, params = params })
-end
-
 -- ── Incremental text application ─────────────────────────────────────────────
 
 ---@param text   string
@@ -240,13 +226,6 @@ end
 
 ---@param msg table
 local function dispatch(msg)
-    -- Route responses to server-initiated requests (no .method field on responses).
-    if msg.id and not msg.method then
-        local cb = pending_reqs[msg.id]
-        if cb then pending_reqs[msg.id] = nil; cb(msg.error, msg.result) end
-        return
-    end
-
     local method = msg.method
     local id     = msg.id
     local params = msg.params or {}
@@ -282,17 +261,23 @@ local function dispatch(msg)
         local text = params.textDocument.text
         log("didOpen " .. tostring(uri))
         doc_text[uri] = text
-        -- Fetch the schema for this document from the client before parsing.
-        send_request("tomltools/getSchema", { uri = uri }, function(err, result)
-            local s = {}
-            if not err and result and result.schema then
-                local ok, decoded = pcall(vim.json.decode, result.schema)
-                if ok then s = decoded end
-            end
-            schemas[uri] = s
+        -- Schema arrives via tomltools/setSchema pushed by the client on_attach.
+        return
+    end
+
+    if method == "tomltools/setSchema" then
+        local uri  = params.uri
+        local text = doc_text[uri]
+        local s    = {}
+        if params.schema then
+            local ok, decoded = pcall(vim.json.decode, params.schema)
+            if ok then s = decoded end
+        end
+        schemas[uri] = s
+        if text then
             parse_document(uri, text)
             publish_diagnostics(uri)
-        end)
+        end
         return
     end
 

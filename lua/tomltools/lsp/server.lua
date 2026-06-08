@@ -25,20 +25,25 @@ local stdout = uv.new_pipe(false)
 stdin:open(0)
 stdout:open(1)
 
--- ── Logger ───────────────────────────────────────────────────────────────────
--- Neovim's LSP client captures the server's stderr and routes it through
--- vim.lsp.log. Use vim.lsp.set_log_level("debug") on the client to see these.
-local function log(msg)
-    io.stderr:write("[tomltools] " .. tostring(msg) .. "\n")
-    io.stderr:flush()
-end
-log("server starting, pid=" .. tostring(uv.os_getpid()))
-
 ---@param obj table
 local function write_msg(obj)
     local json = vim.json.encode(obj)
     stdout:write(("Content-Length: %d\r\n\r\n%s"):format(#json, json))
 end
+
+-- ── Logger ───────────────────────────────────────────────────────────────────
+local MessageType = { Error = 1, Warning = 2, Info = 3, Log = 4 }
+
+---@param msg   string
+---@param level integer? MessageType constant (default: Log)
+local function log(msg, level)
+    write_msg({
+        jsonrpc = "2.0",
+        method  = "window/logMessage",
+        params  = { type = level or MessageType.Log, message = tostring(msg) },
+    })
+end
+log("server starting, pid=" .. tostring(uv.os_getpid()), MessageType.Info)
 
 -- ── Server state ─────────────────────────────────────────────────────────────
 ---@type table<string, tomltools.LspBufferContext>
@@ -229,17 +234,17 @@ local function dispatch(msg)
     local method = msg.method
     local id     = msg.id
     local params = msg.params or {}
-    log("dispatch method=" .. tostring(method) .. " id=" .. tostring(id))
+    log("dispatch method=" .. tostring(method) .. " id=" .. tostring(id), MessageType.Log)
 
     -- ── Lifecycle ────────────────────────────────────────────────────────────
     if method == "initialize" then
         local opts = params.initializationOptions or {}
         if opts.debug_commands then
             debug_commands = true
-            log("debug commands enabled")
+            log("debug commands enabled", MessageType.Log)
         end
         respond(id, INITIALIZE_RESULT)
-        log("initialize done")
+        log("initialize done", MessageType.Info)
         return
     end
 
@@ -259,7 +264,7 @@ local function dispatch(msg)
     if method == "textDocument/didOpen" then
         local uri  = params.textDocument.uri
         local text = params.textDocument.text
-        log("didOpen " .. tostring(uri))
+        log("didOpen " .. tostring(uri), MessageType.Log)
         doc_text[uri] = text
         -- Schema arrives via tomltools/setSchema pushed by the client on_attach.
         return
@@ -345,7 +350,7 @@ local function dispatch(msg)
 
     local function cb(err, res)
         if err then
-            log("handler error: " .. tostring(err.message or err))
+            log("handler error: " .. tostring(err.message or err), MessageType.Error)
             respond_err(id, err.code or -32603, err.message or "internal error")
         else
             respond(id, res ~= nil and res or vim.NIL)
@@ -356,7 +361,7 @@ local function dispatch(msg)
         ensure_parsed(uri)
         ctx = documents[uri] or ctx
         local ok, err = pcall(completion.handler, ctx, params, cb)
-        if not ok then log("completion pcall error: " .. tostring(err)) end
+        if not ok then log("completion pcall error: " .. tostring(err), MessageType.Error) end
         return
     end
 
@@ -400,7 +405,7 @@ local _buf = ""
 
 stdin:read_start(function(err, data)
     if err or not data then
-        log("stdin closed, stopping")
+        log("stdin closed, stopping", MessageType.Warning)
         uv.stop()
         return
     end
@@ -422,7 +427,7 @@ stdin:read_start(function(err, data)
             if ok and type(msg) == "table" then
                 dispatch(msg)
             else
-                log("json decode error: " .. tostring(msg))
+                log("json decode error: " .. tostring(msg), MessageType.Error)
             end
         end
     end

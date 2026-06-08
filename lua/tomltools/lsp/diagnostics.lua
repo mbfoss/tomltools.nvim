@@ -23,7 +23,7 @@ end
 ---@param bufnr integer?
 ---@param context tomltools.LspBufferContext
 ---@return lsp.Diagnostic[]
-function M.build(_bufnr, context)
+function M.build(bufnr, context)
   local diagnostics = {}
   local accumulated_errors = {}
 

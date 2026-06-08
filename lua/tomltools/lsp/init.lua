@@ -108,22 +108,26 @@ function M.dump(buf, what)
     local uri    = vim.uri_from_bufnr(buf)
     local params = { textDocument = { uri = uri } }
 
-    vim.lsp.buf_request(buf, method, params, function(err, result)
+    local client = vim.lsp.get_client_by_id(entry.client_id)
+    if not client then
+        vim.notify("[tomltools] LSP client not found", vim.log.levels.ERROR)
+        return
+    end
+    client:request(method --[[@as any]], params, function(err, result)
         if err then
             vim.notify("[tomltools] dump error: " .. tostring(err.message), vim.log.levels.ERROR)
             return
         end
         local text = (result and result.text) or "(empty)"
 
-        -- Open the dump in a scratch buffer.
         local scratch = vim.api.nvim_create_buf(false, true)
-        vim.api.nvim_buf_set_option(scratch, "buftype", "nofile")
-        vim.api.nvim_buf_set_option(scratch, "bufhidden", "wipe")
+        vim.bo[scratch].buftype   = "nofile"
+        vim.bo[scratch].bufhidden = "wipe"
         vim.api.nvim_buf_set_name(scratch, "[tomltools:" .. what .. "]")
         vim.api.nvim_buf_set_lines(scratch, 0, -1, false, vim.split(text, "\n", { plain = true }))
         vim.cmd("split")
         vim.api.nvim_win_set_buf(0, scratch)
-    end)
+    end, buf)
 end
 
 return M

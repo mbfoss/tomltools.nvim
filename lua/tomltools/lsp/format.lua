@@ -3,11 +3,10 @@ local M = {}
 local parser      = require("tomltools.toml.parser")
 local toml_format = require("tomltools.toml.formatter")
 
----@param context tomltools.LspBufferContext
 ---@param text string
 ---@return lsp.TextEdit? edit
 ---@return string? err
-function M.build_edit(context, text)
+function M.build_edit(text)
   local lines  = vim.split(text, "\n", { plain = true })
   local parsed = parser.parse(text)
 
@@ -17,8 +16,6 @@ function M.build_edit(context, text)
   if not parsed.ok or not parsed.cst then
     return nil, "nothing to format or invalid document structure"
   end
-  context.cst = parsed.cst
-
   local new_text   = toml_format.format(parsed.cst)
   local line_count = #lines
   local last_line  = lines[line_count] or ""
@@ -48,7 +45,8 @@ function M.handler(context, params, callback)
     text = table.concat(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), "\n")
   end
 
-  local edit, err = M.build_edit(context, text)
+  ---@cast text string
+  local edit, err = M.build_edit(text)
   if not edit then
     callback({
       code    = vim.lsp.protocol.ErrorCodes.RequestFailed,

@@ -67,11 +67,14 @@ function M.stop(buf)
     if not entry then return end
 
     vim.diagnostic.reset(diagnostics.namespace, buf)
-
-    local client = vim.lsp.get_client_by_id(entry.client_id)
-    if client then client:stop(true) end
-
+    vim.lsp.buf_detach_client(buf, entry.client_id)
     attached[buf] = nil
+
+    -- Stop the server process only when no buffers remain attached.
+    local client = vim.lsp.get_client_by_id(entry.client_id)
+    if client and next(client.attached_buffers) == nil then
+        client:stop(true)
+    end
 end
 
 -- ── Debug dump API ────────────────────────────────────────────────────────────

@@ -1,8 +1,10 @@
+-- tomltools/toml/DecodeTree.lua
+
 local Tree         = require("tomltools.util.Tree")
 
 ---@class tomltools.toml.DecodeNodeData
 ---@field key    string        path segment (unescaped)
----@field ranges integer[][]   list of {r1,c1,r2,c2} source ranges
+---@field ranges integer[][]   list of {r1,c1,r2,c2} source ranges (one per segment/occurrence)
 ---@field schema table?        resolved schema fragment for this path
 
 ---@class tomltools.toml.PosIndexEntry
@@ -17,7 +19,7 @@ local Tree         = require("tomltools.util.Tree")
 ---@field _tree        tomltools.util.Tree
 ---@field _root_id     integer
 ---@field _id_seq      integer
----@field _pos_index   tomltools.toml.PosIndexEntry[]
+---@field _pos_index   tomltools.toml.PosIndexEntry[]   flat sorted list, built lazily
 ---@field _index_dirty boolean
 local DecodeTree   = {}
 DecodeTree.__index = DecodeTree
@@ -47,6 +49,7 @@ function DecodeTree:root_id()
     return self._root_id
 end
 
+-- Find an immediate child of parent_id whose key matches; returns nil if absent.
 ---@param parent_id integer?
 ---@param key string
 ---@return integer?
@@ -58,6 +61,7 @@ function DecodeTree:get_child_id(parent_id, key)
     return nil
 end
 
+-- Add a new child node under parent_id; returns its id.
 ---@param parent_id integer
 ---@param key string
 ---@param range integer[]?
@@ -69,6 +73,7 @@ function DecodeTree:add_child(parent_id, key, range)
     return id
 end
 
+-- Append a range to an existing node's range list.
 ---@param id integer
 ---@param range integer[]?
 function DecodeTree:add_range_by_id(id, range)
@@ -104,7 +109,14 @@ function DecodeTree:walk_tree(handler)
     return self._tree:walk_tree(handler)
 end
 
+--------------------------------------------------------------------------------
+-- Position index
+--------------------------------------------------------------------------------
+
 ---@private
+-- Rebuild the flat sorted position index from the tree.
+-- Entries are sorted by (r1, c1); depth reflects tree depth so that the deepest
+-- (most specific) containing node wins on lookup.
 function DecodeTree:_rebuild_index()
     if not self._index_dirty then return end
 
@@ -135,6 +147,8 @@ function DecodeTree:_rebuild_index()
 end
 
 ---@private
+-- Binary search: returns the index of the rightmost entry whose start ≤ (row, col).
+-- Returns 0 if no such entry exists.
 ---@param row integer
 ---@param col integer
 ---@return integer
@@ -156,7 +170,7 @@ end
 
 ---@param row integer  0-indexed
 ---@param col integer  0-indexed
----@return integer?
+---@return integer?  id of the deepest node whose range contains (row, col)
 function DecodeTree:pos_to_id(row, col)
     self:_rebuild_index()
 
@@ -197,6 +211,9 @@ function DecodeTree:is_key_node(id)
     return data ~= nil and data.is_key_node == true
 end
 
+-- Store the source range of the value for a node. The range starts at the
+-- first character of the value token (after `=` and any whitespace), so that
+-- cursor_on_value triggers even when the cursor is between `=` and the value.
 ---@param id    integer
 ---@param range integer[]  {r1, c1, r2, c2}
 function DecodeTree:set_value_range(id, range)
@@ -204,6 +221,7 @@ function DecodeTree:set_value_range(id, range)
     if data and range then data.value_range = range end
 end
 
+-- Store the source range of the key token itself (not including `=` or value).
 ---@param id    integer
 ---@param range integer[]  {r1, c1, r2, c2}
 function DecodeTree:set_key_range(id, range)
@@ -211,6 +229,9 @@ function DecodeTree:set_key_range(id, range)
     if data and range then data.key_range = range end
 end
 
+-- Returns true when (row, col) is at or past the start of the value range,
+-- i.e. the cursor is on the value side of the key-value pair (not on the
+-- key token or the `=` operator).
 ---@param id  integer
 ---@param row integer
 ---@param col integer
@@ -222,6 +243,10 @@ function DecodeTree:cursor_on_value(id, row, col)
     return row > vr[1] or (row == vr[1] and col >= vr[2])
 end
 
+-- Returns true when (row, col) is within the key token itself. Nodes without a
+-- stored key_range (e.g. table-section headers) fall back to checking that the
+-- cursor is before the value range start. Incomplete pairs without `=` return
+-- true only when is_key_node is set.
 ---@param id  integer
 ---@param row integer
 ---@param col integer
@@ -230,14 +255,22 @@ function DecodeTree:cursor_on_key(id, row, col)
     local data = self._tree:get_data(id)
     if not data then return false end
     if not data.value_range then return data.is_key_node == true end
+    -- Cursor must be before the value start (not on `=` side or value).
     local vr = data.value_range
     if not (row < vr[1] or (row == vr[1] and col < vr[2])) then return false end
+    -- When a precise key token range is stored, require cursor to be within it
+    -- so the gap between the key text and `=` does not trigger key completions.
     local kr = data.key_range
     if not kr then return true end
     return (row > kr[1] or (row == kr[1] and col >= kr[2]))
         and (row < kr[3] or (row == kr[3] and col <= kr[4] + 1))
 end
 
+--------------------------------------------------------------------------------
+-- Path utilities
+--------------------------------------------------------------------------------
+
+-- Returns the key segments from root down to id (not including root).
 ---@param id integer
 ---@return string[]
 function DecodeTree:key_parts_of(id)

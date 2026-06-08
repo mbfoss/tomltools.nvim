@@ -4,12 +4,14 @@ local M = {}
 
 M.ordered = table_util.ordered
 
+--- Wrap a pre-formatted TOML scalar so the encoder emits it verbatim.
 ---@param s string
 ---@return table
 function M.raw(s)
     return setmetatable({}, { _toml_raw = s })
 end
 
+--- Returns the verbatim string if v was created with M.raw(), otherwise nil.
 ---@param v any
 ---@return string?
 local function raw_value(v)
@@ -18,12 +20,14 @@ local function raw_value(v)
     return mt and type(mt._toml_raw) == "string" and mt._toml_raw or nil
 end
 
+
 ---@param key string
 ---@return boolean
 local function needs_quotes(key)
     return not key:match("^[A-Za-z0-9_%-]+$")
 end
 
+-- Escape a string's content for use inside a TOML basic string (double-quoted).
 ---@param s string
 ---@return string
 local function escape_basic(s)
@@ -90,6 +94,8 @@ local function sorted_keys(t)
     return ks
 end
 
+--- Like sorted_keys but honours M.ordered() metadata: listed keys come first
+--- in order, remaining keys are appended sorted.
 ---@param t table
 ---@return any[]
 local function ordered_or_sorted_keys(t)
@@ -148,6 +154,9 @@ encode_value = function(v)
     error("encode: unsupported value type: " .. t)
 end
 
+-- Emit TOML lines for a table at section scope.
+-- All arrays (including arrays of tables) are encoded inline — [[aot]] is never used
+-- because inline arrays are always valid and avoid a class of nesting ambiguities.
 ---@param path    string[]
 ---@param data    table
 ---@param out     string[]
@@ -157,6 +166,8 @@ local function emit_section(path, data, out)
 
     for _, k in ipairs(ordered_or_sorted_keys(data)) do
         local v = data[k]
+        -- A non-array dict table at section scope becomes a [header]. Everything
+        -- else (scalars, arrays, raw wrappers) is a simple inline KVP.
         if type(v) == "table" and not is_array(v) and not raw_value(v) then
             subtbl_keys[#subtbl_keys+1] = k
         else
@@ -183,8 +194,8 @@ local function emit_section(path, data, out)
 end
 
 ---@param tbl    table
----@param indent string
----@return string
+---@param indent string  outer indentation; inner items get two extra spaces
+---@return string        newline-joined block, all lines self-indented
 local function encode_inline_table_multiline(tbl, indent)
     local inner = indent .. "  "
     local parts = { indent .. "{" }
@@ -196,9 +207,12 @@ local function encode_inline_table_multiline(tbl, indent)
 end
 
 ---@class tomltools.EncodeInlineOpts
----@field multiline boolean?
----@field indent    string?
+---@field multiline boolean?  emit as a multiline inline table
+---@field indent    string?   outer indentation prefix (used when multiline = true)
 
+--- Encode a Lua table as a TOML inline table string: { key = val, ... }.
+--- Pass opts.multiline = true for a multiline block; all lines carry their own
+--- indentation so the caller can split("\n") and insert directly.
 ---@param t    table
 ---@param opts tomltools.EncodeInlineOpts?
 ---@return string
@@ -209,6 +223,8 @@ function M.encode_inline(t, opts)
     return encode_inline_table(t)
 end
 
+--- Encode a Lua table as a [[key]] AoT entry block.
+--- Returns "[[key]]\nfield = val\n..." using sorted keys.
 ---@param aot_key string
 ---@param item    table
 ---@return string
@@ -218,6 +234,7 @@ function M.encode_aot_entry(aot_key, item)
     return table.concat(out, "\n")
 end
 
+--- Encode a Lua table as a TOML string.
 ---@param data table
 ---@return string
 function M.encode(data)

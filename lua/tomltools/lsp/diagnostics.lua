@@ -20,10 +20,10 @@ local function fallback_range(range)
   return { start = { line = 0, character = 0 }, ["end"] = { line = 0, character = 0 } }
 end
 
----@param bufnr integer
+---@param bufnr integer?
 ---@param context tomltools.LspBufferContext
 ---@return lsp.Diagnostic[]
-function M.build(bufnr, context)
+function M.build(_bufnr, context)
   local diagnostics = {}
   local accumulated_errors = {}
 

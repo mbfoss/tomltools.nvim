@@ -7,6 +7,7 @@ local Cst        = require("tomltools.toml.Cst")
 
 local K          = Cst.Kind
 
+-- CST kind → TOML type string (for type_map)
 local kind_to_type = {
     [K.String]        = "string",
     [K.Integer]       = "integer",
@@ -62,6 +63,9 @@ local function evaluate(cst, with_type_map)
 
     local eval_value  -- forward decl
 
+    -- Resolve a chain of dotted-key data objects as an implicit table path, starting from
+    -- (scope_table, scope_id), navigating keys[from..to].  Returns (table, id) at the leaf,
+    -- or (nil, nil) on error.
     ---@param keys        tomltools.toml.CstData[]
     ---@param from        integer
     ---@param to          integer
@@ -115,6 +119,7 @@ local function evaluate(cst, with_type_map)
         return cur_table, cur_id
     end
 
+    -- Process a KVP CST node at (scope_table, scope_id). Handles dotted keys.
     ---@param kvp_id      integer
     ---@param scope_table table
     ---@param scope_id    integer?
@@ -127,6 +132,7 @@ local function evaluate(cst, with_type_map)
         if not val_data or val_data.kind == K.Error then return end
         local kvp_range = cst:range(kvp_id) or { 0, 0, 0, 0 }
 
+        -- Navigate intermediate dotted keys (all but the last)
         local leaf_table, leaf_id
         if #keys > 1 then
             leaf_table, leaf_id = navigate_dotted(keys, 1, #keys - 1, scope_table, scope_id)
@@ -147,6 +153,7 @@ local function evaluate(cst, with_type_map)
                 if inline_table_ids[existing_id] then
                     add_err({ message = "Cannot extend inline table: " .. key, range = key_range })
                 else
+                    -- dotted-key table or explicit table: both cannot be replaced by an inline table
                     add_err({ message = "Cannot redefine existing table as inline table: " .. key,
                               range = key_range })
                 end
@@ -168,6 +175,7 @@ local function evaluate(cst, with_type_map)
         end
     end
 
+    -- Process KVPs that are direct children of a section or the document.
     ---@param sec_id      integer
     ---@param scope_table table
     ---@param scope_id    integer?
@@ -179,6 +187,7 @@ local function evaluate(cst, with_type_map)
         end
     end
 
+    -- Evaluate an inline table: iterate its KVP children (handling dotted keys).
     ---@param node_id integer
     ---@param dt_id   integer
     ---@return table
@@ -266,12 +275,15 @@ local function evaluate(cst, with_type_map)
         return nil
     end
 
+    -- ===== main document walk =====
+
     for sec_id, d in cst:iter_semantic(cst:root_id()) do
         if d.kind == K.TableSection then
             current_table = root
             current_id    = dt:root_id()
             local invalid = false
 
+            -- Find the TableHeader child and extract keys
             local hdr_id
             for cid, cd in cst:iter_semantic(sec_id) do
                 if cd.kind == K.TableHeader then hdr_id = cid; break end

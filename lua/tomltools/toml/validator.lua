@@ -9,14 +9,21 @@
 --   Array:       prefixItems, items, contains, minContains, maxContains,
 --                minItems, maxItems, uniqueItems
 --   Composition: allOf, anyOf, oneOf, not, if/then/else
+--
+-- NOT IMPLEMENTED
+--   $ref / $defs
+--   unevaluatedProperties / unevaluatedItems
+--   $dynamicRef / $dynamicAnchor
+--   format assertions (treated as annotation-only).
+--   contentEncoding / contentMediaType / contentSchema
 
 local M = {}
 
----@class tomltools.json.ValidationError
+---@class loop.json.ValidationError
 ---@field node_id integer?
 ---@field err_msg string
 
----@param errors tomltools.json.ValidationError[]
+---@param errors loop.json.ValidationError[]
 ---@param node_id integer?
 ---@param msg string
 local function add_error(errors, node_id, msg)
@@ -43,12 +50,13 @@ end
 ---@param data any
 ---@param node_id integer?
 ---@param dt tomltools.toml.DecodeTree?
----@param errors tomltools.json.ValidationError[]
+---@param errors loop.json.ValidationError[]
 local function _validate(schema, data, node_id, dt, errors)
     local function child_id(key)
         return dt and node_id and dt:get_child_id(node_id, key) or nil
     end
 
+    -- type
     if schema.type ~= nil then
         local allowed = type(schema.type) == "table" and schema.type or { schema.type }
         local ok = false
@@ -72,16 +80,19 @@ local function _validate(schema, data, node_id, dt, errors)
         end
     end
 
+    -- enum
     if schema.enum ~= nil and not check_enum(schema.enum, data) then
         local strs = {}
         for _, v in ipairs(schema.enum) do table.insert(strs, tostring(v)) end
         add_error(errors, node_id, "valid values: " .. table.concat(strs, ", "))
     end
 
+    -- const
     if schema.const ~= nil and not deep_equal(data, schema.const) then
         add_error(errors, node_id, ("expected %s, got %s"):format(tostring(schema.const), tostring(data)))
     end
 
+    -- string keywords
     if type(data) == "string" then
         if type(schema.minLength) == "number" and #data < schema.minLength then
             add_error(errors, node_id,
@@ -97,6 +108,7 @@ local function _validate(schema, data, node_id, dt, errors)
         end
     end
 
+    -- numeric keywords
     if type(data) == "number" then
         if type(schema.minimum) == "number" and data < schema.minimum then
             add_error(errors, node_id, ("value must be >= %g"):format(schema.minimum))
@@ -115,6 +127,7 @@ local function _validate(schema, data, node_id, dt, errors)
         end
     end
 
+    -- object keywords — apply whenever data is an object, regardless of schema.type
     if type(data) == "table" and not vim.islist(data) then
         local props         = schema.properties or {}
         local required      = schema.required or {}
@@ -193,7 +206,9 @@ local function _validate(schema, data, node_id, dt, errors)
         end
     end
 
+    -- array keywords — apply whenever data is an array, regardless of schema.type
     if vim.islist(data) then
+        -- prefixItems: positional schemas (Draft 2020-12)
         local prefix_len = 0
         if schema.prefixItems then
             prefix_len = #schema.prefixItems
@@ -204,6 +219,7 @@ local function _validate(schema, data, node_id, dt, errors)
             end
         end
 
+        -- items: applies only to elements after prefixItems (Draft 2020-12 semantics)
         if schema.items then
             for i, value in ipairs(data) do
                 if i > prefix_len then
@@ -256,6 +272,7 @@ local function _validate(schema, data, node_id, dt, errors)
         end
     end
 
+    -- if / then / else
     if schema["if"] then
         local tmp = {}
         _validate(schema["if"], data, node_id, dt, tmp)
@@ -266,12 +283,14 @@ local function _validate(schema, data, node_id, dt, errors)
         end
     end
 
+    -- allOf: all sub-schemas must pass
     if schema.allOf then
         for _, sub in ipairs(schema.allOf) do
             _validate(sub, data, node_id, dt, errors)
         end
     end
 
+    -- anyOf: at least one sub-schema must pass; report best-match errors on total failure
     if schema.anyOf then
         local best_errors, best_count = nil, math.huge
         local any_pass = false
@@ -292,6 +311,7 @@ local function _validate(schema, data, node_id, dt, errors)
         end
     end
 
+    -- oneOf: exactly one sub-schema must pass
     if schema.oneOf then
         local pass_count = 0
         local best_errors, best_count = nil, math.huge
@@ -313,6 +333,7 @@ local function _validate(schema, data, node_id, dt, errors)
         end
     end
 
+    -- not
     if schema["not"] then
         local tmp = {}
         _validate(schema["not"], data, node_id, dt, tmp)
@@ -326,7 +347,7 @@ end
 ---@param data any
 ---@param dt tomltools.toml.DecodeTree?
 ---@return boolean valid
----@return tomltools.json.ValidationError[] errors
+---@return loop.json.ValidationError[] errors
 function M.validate(schema, data, dt)
     local errors  = {}
     local root_id = dt and dt:root_id() or nil

@@ -1,3 +1,4 @@
+-- tomltools/toml/schema_util.lua
 local M = {}
 
 function M.matches_filter(prefix, target)
@@ -70,6 +71,7 @@ function M.gather_table_paths(node, current_path, results)
   end
 end
 
+-- Collect paths suitable for [[array-of-tables]] headers.
 function M.gather_array_table_paths(node, current_path, results)
   if not node or not node.properties then return end
 

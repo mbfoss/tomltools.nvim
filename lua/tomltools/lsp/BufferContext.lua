@@ -4,7 +4,7 @@
 ---@field parse_errors  table
 ---@field data          any
 ---@field decode_errors table
----@field decode_tree   tomltools.toml.DecodeTree
+---@field decode_tree   tomltools.toml.DecodeTree?
 ---@field schema        table|nil   JSON schema assigned to this buffer
 ---@field parse_results table|nil   Last known output (data, errors)
 ---@field last_updated  integer|nil Timestamp or btick when the cache was updated
@@ -12,7 +12,7 @@
 ---@field debounce_timer number?
 ---@field text          string?     Raw document text (set by subprocess server)
 ---@field lines         string[]?   Document text split on "\n" (set by subprocess server)
----@field code_action_providers (fun(ctx: tomltools.LspBufferContext, params: table): table[])?
+---@field code_action_providers (fun(ctx: tomltools.LspBufferContext, params: table): table[]?)[]?
 local BufferContext = {}
 BufferContext.__index = BufferContext
 

@@ -67,6 +67,8 @@ function M.parse(text)
         if char() == "\n" then step() end
     end
 
+    -- ===== trivia emitters =====
+
     local function emit_ws(pid)
         if not is_ws() then return end
         local sr, sc = row, col
@@ -105,6 +107,9 @@ function M.parse(text)
         if is_ws() then emit_ws(pid) end
     end
 
+    -- ===== key parsers =====
+
+    -- Parse a quoted key (single or double), emit QuotedKey token, return decoded value.
     local function parse_quoted_key(pid)
         local sr, sc = row, col
         local bs     = cursor
@@ -153,6 +158,8 @@ function M.parse(text)
         return val
     end
 
+    -- Parse a bare or quoted key token, emit it, return decoded key string.
+    -- Returns "" if no valid key chars are present.
     local function parse_key_token(pid)
         local c = char()
         if c == '"' or c == "'" then return parse_quoted_key(pid) end
@@ -168,6 +175,8 @@ function M.parse(text)
         return val
     end
 
+    -- Parse `key (. key)*`, emitting key + dot tokens under pid.
+    -- Returns array of decoded key strings.
     local function parse_dotted_keys(pid)
         local keys = {}
         while bounds() do
@@ -197,7 +206,8 @@ function M.parse(text)
         return keys
     end
 
-    local parse_value
+    -- ===== value parsers =====
+    local parse_value -- forward decl
 
     local function parse_string(pid)
         local sr, sc = row, col
@@ -416,7 +426,7 @@ function M.parse(text)
         local s      = table.concat(s_buf)
         local lkind  = s:find("[%.eE]") and "float" or "integer"
         local v      = tonumber(s) or 0
-        if lkind == "integer" and v == 0 then v = 0 end
+        if lkind == "integer" and v == 0 then v = 0 end  -- normalize -0
         cst:token(pid, lkind == "float" and K.Float or K.Integer, text:sub(bs, cursor - 1), v, sr, sc, er, ec)
     end
 
@@ -483,6 +493,7 @@ function M.parse(text)
         cst:close(arr_id, row, col)
     end
 
+    -- Parse a KVP (key = value) and attach it under pid.
     local function parse_kvp(pid)
         local sr, sc = row, col
         local kvp_id = cst:open(pid, K.KeyValuePair, sr, sc)
@@ -553,6 +564,8 @@ function M.parse(text)
             if char() ~= "=" then
                 add_err("Expected = in inline table")
                 cst:close(kvp_id, row, col)
+                -- cursor is on the newline; emit_trivia at loop top will consume it
+                -- and the next iteration picks up the following key = value
             else
                 local eq_r, eq_c = row, col; step()
                 cst:token(kvp_id, K.Equals, "=", nil, eq_r, eq_c, row, col)
@@ -602,8 +615,10 @@ function M.parse(text)
         parse_bool_special(pid)
     end
 
+    -- ===== document loop =====
+
     local doc_id            = cst:root_id()
-    local current_section   = nil
+    local current_section   = nil  -- nil = document root level
 
     while bounds() do
         local parent = current_section or doc_id
@@ -611,10 +626,11 @@ function M.parse(text)
         if not bounds() then break end
 
         if char() == "[" then
+            -- close previous section
             if current_section then cst:close(current_section, row, col) end
 
             local sec_sr, sec_sc = row, col
-            step()
+            step()  -- first [
             local is_aot = char() == "["
             if is_aot then step() end
 
@@ -624,12 +640,14 @@ function M.parse(text)
             local sec_id = cst:open(doc_id, sec_kind, sec_sr, sec_sc)
             local hdr_id = cst:open(sec_id, hdr_kind, sec_sr, sec_sc)
 
+            -- emit opening bracket(s) into header
             cst:token(hdr_id, K.LBracket, "[", nil, sec_sr, sec_sc, row, col)
             if is_aot then
                 local b2r, b2c = row, col
                 cst:token(hdr_id, K.LBracket, "[", nil, b2r, b2c, row, col)
             end
 
+            -- parse header keys
             local key_count = 0
             local valid     = true
             while bounds() and char() ~= "]" and not is_nl() do
@@ -667,8 +685,9 @@ function M.parse(text)
             if key_count == 0 and valid then
                 add_err("Empty section header"); valid = false
             end
-            _ = valid
+            _ = valid  -- referenced for correctness; errors already added
 
+            -- closing bracket(s)
             if char() ~= "]" then
                 add_err("Missing ] in section header")
             else
@@ -701,6 +720,7 @@ function M.parse(text)
         end
     end
 
+    -- close last section and document
     if current_section then cst:close(current_section, row, col) end
     cst:close(doc_id, row, col)
 

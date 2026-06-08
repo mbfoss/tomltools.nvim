@@ -1,3 +1,8 @@
+-- tomltools/toml/Cst.lua
+-- Concrete Syntax Tree: every source character is a token, composites group them.
+-- leaf nodes have:  kind, text (source slice), value (parsed), range {r1,c1,r2,c2}
+-- composite nodes have: kind, range {r1,c1,r2,c2}  (no text/value)
+
 local Tree = require("tomltools.util.Tree")
 
 ---@class tomltools.toml.CstData
@@ -49,13 +54,13 @@ local Kind = {
 
     -- Composite nodes (have children)
     Document      = 22,
-    TableSection  = 23,
-    AotSection    = 24,
-    TableHeader   = 25,
-    AotHeader     = 26,
-    KeyValuePair  = 27,
-    Array         = 28,
-    InlineTable   = 29,
+    TableSection  = 23,  -- [header] line + following KVPs until next section
+    AotSection    = 24,  -- [[header]] + following KVPs
+    TableHeader   = 25,  -- the [key.key] line tokens only
+    AotHeader     = 26,  -- the [[key.key]] line tokens only
+    KeyValuePair  = 27,  -- key (. key)* = value
+    Array         = 28,  -- [ items ]
+    InlineTable   = 29,  -- { kvps }
 }
 
 local trivia_set = { [Kind.Whitespace] = true, [Kind.Newline] = true }
@@ -90,6 +95,7 @@ end
 ---@return integer
 function Cst:root_id() return self._root end
 
+-- Add a leaf token under parent_id and return its id.
 ---@param parent_id integer
 ---@param kind      tomltools.toml.CstKind
 ---@param text      string?
@@ -107,6 +113,7 @@ function Cst:token(parent_id, kind, text, value, r1, c1, r2, c2)
     return id
 end
 
+-- Begin a composite node under parent_id; range is finalized by close().
 ---@param parent_id integer
 ---@param kind      tomltools.toml.CstKind
 ---@param r1        integer
@@ -118,6 +125,7 @@ function Cst:open(parent_id, kind, r1, c1)
     return id
 end
 
+-- Finalize the end of a composite node's range.
 ---@param id integer
 ---@param r2 integer
 ---@param c2 integer
@@ -166,12 +174,14 @@ function Cst:set_tag(id, v) local d = self._tree:get_data(id); if d then d.tag =
 ---@return integer?
 function Cst:get_tag(id)    local d = self._tree:get_data(id); return d and d.tag end
 
+-- Iterate all children of parent_id.
 ---@param parent_id integer
 ---@return fun(): integer?, tomltools.toml.CstData?
 function Cst:children(parent_id)
     return self._tree:iter_children(parent_id)
 end
 
+-- Iterate children, skipping Whitespace and Newline tokens.
 ---@param parent_id integer
 ---@return fun(): integer?, tomltools.toml.CstData?
 function Cst:iter_semantic(parent_id)
@@ -185,6 +195,7 @@ function Cst:iter_semantic(parent_id)
     end
 end
 
+-- Find the first immediate child whose kind matches any of the given kinds.
 ---@param parent_id integer
 ---@param ...       tomltools.toml.CstKind
 ---@return integer?
@@ -202,6 +213,7 @@ function Cst:first_child_of_kind(parent_id, ...)
     return nil
 end
 
+-- Walk up from id, returning the nearest ancestor whose kind matches any argument.
 ---@param id integer
 ---@param ... tomltools.toml.CstKind
 ---@return integer?
@@ -218,6 +230,7 @@ function Cst:ancestor_of_kind(id, ...)
     return nil
 end
 
+-- Collect BareKey/QuotedKey data from a header or KVP node (stops at Equals or LBrace).
 ---@param node_id integer
 ---@return tomltools.toml.CstData[]
 function Cst:get_keys(node_id)
@@ -232,6 +245,7 @@ function Cst:get_keys(node_id)
     return keys
 end
 
+-- Return the first value node id+data after the Equals token in a KVP.
 ---@param kvp_id integer
 ---@return integer?
 ---@return tomltools.toml.CstData?
@@ -244,6 +258,7 @@ function Cst:get_value(kvp_id)
     return nil, nil
 end
 
+-- Iterate children that are value nodes (for arrays: skips brackets, commas, trivia).
 ---@param parent_id integer
 ---@return fun(): integer?, tomltools.toml.CstData?
 function Cst:iter_values(parent_id)
@@ -257,11 +272,16 @@ function Cst:iter_values(parent_id)
     end
 end
 
+-- Walk every node in the tree, calling handler(id, data, depth).
 ---@param handler fun(id: integer, data: tomltools.toml.CstData, depth: integer)
 function Cst:walk(handler)
     self._tree:walk_tree(handler)
 end
 
+-- Find the deepest leaf whose range contains (row, col).
+-- When no token contains the cursor (e.g. trailing empty line past all tokens),
+-- falls back to the deepest leaf that ends nearest before the cursor so that
+-- section context is preserved. Always returns a valid id.
 ---@param row integer
 ---@param col integer
 ---@return integer
@@ -283,6 +303,8 @@ function Cst:token_at(row, col)
         end
         return nil
     end
+    -- Walk last_child → prev_sibling to find the deepest leaf ending just before
+    -- the cursor without scanning all children.
     local function nearest_preceding(id)
         local child = self._tree:get_last_child_id(id)
         while child do

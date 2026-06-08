@@ -1,8 +1,12 @@
+-- tomltools/toml/schema_nav.lua
+-- Shared schema navigation: flatten, schema_at, and cursor resolution via DecodeTree.
 local M = {}
 
 local vu        = require("tomltools.toml.validator_util")
 local validator = require("tomltools.toml.validator")
 
+-- Merge allOf, anyOf, oneOf, dependentSchemas; resolve if/then/else against data.
+-- Returns a new flat schema table with conditional keys removed.
 ---@param s table
 ---@param d any
 ---@return table
@@ -68,6 +72,12 @@ function M.flatten(s, d)
   return out
 end
 
+-- Navigate root_schema+root_data to the schema owned by a DecodeTree node.
+-- Walks the key segments from root to `id`, navigating schema and data in
+-- parallel. Handles arrays (numeric segments → prefixItems then items),
+-- objects (→ properties, patternProperties, additionalProperties),
+-- and conditional keywords via flatten.
+-- Returns a flattened schema table, or nil if the path is not navigable.
 ---@param root_schema table
 ---@param root_data   any
 ---@param dt          tomltools.toml.DecodeTree
@@ -120,6 +130,9 @@ function M.schema_at(root_schema, root_data, dt, id)
   return M.flatten(s, d)
 end
 
+-- Like schema_at but returns the field's schema without the final flatten,
+-- preserving oneOf/allOf on the target node. Used by completion to offer
+-- completions from all oneOf branches rather than just the best-matching one.
 ---@param root_schema table
 ---@param root_data   any
 ---@param dt          tomltools.toml.DecodeTree
@@ -169,7 +182,7 @@ function M.raw_schema_at(root_schema, root_data, dt, id)
     end
   end
 
-  return s
+  return s  -- intentionally not flattened
 end
 
 return M

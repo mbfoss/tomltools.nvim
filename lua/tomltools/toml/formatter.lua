@@ -13,6 +13,7 @@ local function quote_key(key)
     return key
 end
 
+
 ---@param cst tomltools.toml.Cst
 ---@return string
 function M.format(cst)
@@ -41,6 +42,7 @@ function M.format(cst)
     local function format_inline_table(tbl_id, tbl_range, indent)
         local multiline = tbl_range[1] ~= tbl_range[3]
 
+        -- collect KVPs and Comments in document order (skip Comma, ws, nl)
         local items = {}
         for id, d in cst:iter_semantic(tbl_id) do
             if d.kind == K.KeyValuePair or d.kind == K.Comment then
@@ -49,6 +51,7 @@ function M.format(cst)
         end
 
         if not multiline then
+            -- single-line: no comments possible, just format KVPs
             local parts = {}
             for _, item in ipairs(items) do
                 if item.d.kind == K.KeyValuePair then
@@ -65,6 +68,7 @@ function M.format(cst)
             return "{ " .. table.concat(parts, ", ") .. " }"
         end
 
+        -- multiline: interleave KVPs and comments, detect trailing comments by row
         local last_kvp_idx = 0
         for i, item in ipairs(items) do
             if item.d.kind == K.KeyValuePair then last_kvp_idx = i end
@@ -85,12 +89,13 @@ function M.format(cst)
                     local val_str = vd and format_value(vi, vd, indent + 1) or '""'
                     local line = pad .. table.concat(kp, ".") .. " = " .. val_str
                                      .. (i < last_kvp_idx and "," or "")
+                    -- check if the next item is a trailing comment on the same row
                     local kvp_row = item.d.range and item.d.range[3]
                     local next = items[i + 1]
                     if next and next.d.kind == K.Comment
                             and next.d.range and next.d.range[1] == kvp_row then
                         line = line .. " " .. next.d.text
-                        i = i + 1
+                        i = i + 1  -- consume the trailing comment
                     end
                     lines[#lines + 1] = line
                 end
@@ -120,7 +125,7 @@ function M.format(cst)
         elseif k == K.Integer then
             return tostring(math.floor(val_data.value))
         elseif k == K.Datetime or k == K.DatetimeLocal or k == K.DateLocal or k == K.TimeLocal then
-            return val_data.value
+            return val_data.value  -- already a formatted string
         elseif k == K.Array then
             return format_array(val_id, val_data.range, indent)
         elseif k == K.InlineTable then
@@ -137,6 +142,7 @@ function M.format(cst)
         local vi, vd = cst:get_value(kvp_id)
         local val_str = vd and format_value(vi, vd) or '""'
         local line = table.concat(key_parts, ".") .. " = " .. val_str
+        -- append trailing comment if present
         for _, cd in cst:iter_semantic(kvp_id) do
             if cd.kind == K.Comment then line = line .. " " .. cd.text; break end
         end
@@ -151,6 +157,7 @@ function M.format(cst)
             if not first then out[#out + 1] = "" end
             first = false
 
+            -- find header child
             local hdr_kind = d.kind == K.TableSection and K.TableHeader or K.AotHeader
             local hdr_id
             for cid, cd in cst:iter_semantic(sec_id) do
@@ -164,6 +171,7 @@ function M.format(cst)
                         .. table.concat(key_parts, ".")
                         .. (d.kind == K.AotSection and "]]" or "]")
 
+            -- trailing comment from header
             if hdr_id then
                 for _, cd in cst:iter_semantic(hdr_id) do
                     if cd.kind == K.Comment then header = header .. " " .. cd.text; break end

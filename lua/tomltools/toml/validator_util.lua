@@ -1,5 +1,6 @@
 local M = {}
 
+---Determine displayed type name for tree rendering
 ---@param v any
 ---@return string
 function M.value_type(v)

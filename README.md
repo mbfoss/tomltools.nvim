@@ -9,7 +9,7 @@ A Neovim plugin providing a full TOML processing pipeline and a schema-driven LS
 ## Features
 
 - Hand-written recursive descent TOML parser producing a lossless Concrete Syntax Tree (CST)
-- Full TOML 1.0 decode, encode, and format pipeline
+- Full TOML 1.1 decode, encode, and format pipeline
 - JSON Schema Draft 2020-12 validator (partial subset)
 - Schema-driven LSP server running as a headless Neovim subprocess:
   - Diagnostics (parse errors, decode errors, schema validation)

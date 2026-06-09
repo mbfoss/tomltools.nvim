@@ -33,7 +33,7 @@ describe("schema_nav.flatten", function()
         local r = sn.flatten({
             ["if"]   = { type = "string" },
             ["then"] = { minLength = 5 },
-            ["else"] = { minimum  = 10 },
+            ["else"] = { minimum = 10 },
         }, "hello")
         assert.equals(5, r.minLength)
         assert.is_nil(r.minimum)
@@ -46,7 +46,7 @@ describe("schema_nav.flatten", function()
         local r = sn.flatten({
             ["if"]   = { type = "string" },
             ["then"] = { minLength = 5 },
-            ["else"] = { minimum  = 10 },
+            ["else"] = { minimum = 10 },
         }, 42)
         assert.equals(10, r.minimum)
         assert.is_nil(r.minLength)
@@ -70,8 +70,8 @@ describe("schema_nav.flatten", function()
                 { minimum = 1 },
                 { maximum = 100 },
             },
-        }, 50)  -- both branches valid for 50
-        assert.equals(1,   r.minimum)
+        }, 50) -- both branches valid for 50
+        assert.equals(1, r.minimum)
         assert.equals(100, r.maximum)
         assert.is_nil(r.anyOf)
     end)
@@ -84,8 +84,8 @@ describe("schema_nav.flatten", function()
                 { type = "number" },
             },
         }, true)
-        assert.not_nil(r)       -- should not error or return nil
-        assert.is_nil(r.anyOf)  -- keyword must be removed
+        assert.not_nil(r)      -- should not error or return nil
+        assert.is_nil(r.anyOf) -- keyword must be removed
     end)
 
     it("dependentSchemas: merged when controlling property is present", function()
@@ -113,7 +113,7 @@ describe("schema_nav.flatten", function()
             dependentSchemas = {
                 ["1"] = { properties = { extra = {} } },
             },
-        }, { "elem" })  -- vim.islist → true, so dependentSchemas must be skipped
+        }, { "elem" }) -- vim.islist → true, so dependentSchemas must be skipped
         assert.is_nil(r.properties)
     end)
 end)
@@ -127,14 +127,14 @@ describe("schema_nav.schema_at", function()
     local root_schema = {
         type       = "object",
         properties = {
-            name  = { type = "string" },
-            score = { type = "number" },
-            tags  = {
+            name   = { type = "string" },
+            score  = { type = "number" },
+            tags   = {
                 type        = "array",
                 prefixItems = { [1] = { type = "string", const = "first" } },
                 items       = { type = "string" },
             },
-            meta  = {
+            meta   = {
                 type                 = "object",
                 patternProperties    = { ["^x_"] = { type = "string" } },
                 additionalProperties = { type = "number" },
@@ -146,34 +146,39 @@ describe("schema_nav.schema_at", function()
         },
     }
     local root_data = {
-        name  = "test",
-        score = 10,
-        tags  = { "first", "second", "third" },
-        meta  = { x_label = "ok", count = 5 },
+        name   = "test",
+        score  = 10,
+        tags   = { "first", "second", "third" },
+        meta   = { x_label = "ok", count = 5 },
         locked = {},
     }
 
     it("navigates to a plain property", function()
         local s = sn.schema_at(root_schema, root_data, make_dt({ "name" }), 0)
         assert.not_nil(s)
+        assert(s)
         assert.equals("string", s.type)
     end)
 
     it("empty parts returns flattened root schema", function()
         local s = sn.schema_at(root_schema, root_data, make_dt({}), 0)
         assert.not_nil(s)
+        assert(s)
+
         assert.equals("object", s.type)
     end)
 
     it("prefixItems: numeric index within prefix range", function()
         local s = sn.schema_at(root_schema, root_data, make_dt({ "tags", "1" }), 0)
         assert.not_nil(s)
+        assert(s)
         assert.equals("first", s.const)
     end)
 
     it("items: numeric index beyond prefix range falls back to items", function()
         local s = sn.schema_at(root_schema, root_data, make_dt({ "tags", "2" }), 0)
         assert.not_nil(s)
+        assert(s)
         assert.equals("string", s.type)
         assert.is_nil(s.const)
     end)
@@ -181,12 +186,14 @@ describe("schema_nav.schema_at", function()
     it("patternProperties: key matching a pattern", function()
         local s = sn.schema_at(root_schema, root_data, make_dt({ "meta", "x_label" }), 0)
         assert.not_nil(s)
+        assert(s)
         assert.equals("string", s.type)
     end)
 
     it("additionalProperties: unmatched key falls through", function()
         local s = sn.schema_at(root_schema, root_data, make_dt({ "meta", "count" }), 0)
         assert.not_nil(s)
+        assert(s)
         assert.equals("number", s.type)
     end)
 
@@ -218,6 +225,7 @@ describe("schema_nav.schema_at", function()
         }
         local s = sn.schema_at(schema, { x = 1 }, make_dt({ "x" }), 0)
         assert.not_nil(s)
+        assert(s)
         assert.equals("number", s.type)
     end)
 
@@ -231,6 +239,7 @@ describe("schema_nav.schema_at", function()
         local data = { kind = "str", value = "hello" }
         local s = sn.schema_at(schema, data, make_dt({ "value" }), 0)
         assert.not_nil(s)
+        assert(s)
         assert.equals("string", s.type)
     end)
 end)
@@ -254,8 +263,9 @@ describe("schema_nav.raw_schema_at", function()
         }
         local s = sn.raw_schema_at(schema, { item = "hi" }, make_dt({ "item" }), 0)
         assert.not_nil(s)
+        assert(s)
         assert.not_nil(s.oneOf)
-        assert.is_nil(s.type)  -- raw: not flattened into a concrete type
+        assert.is_nil(s.type) -- raw: not flattened into a concrete type
     end)
 
     it("intermediate steps still use flatten for navigation", function()
@@ -275,6 +285,7 @@ describe("schema_nav.raw_schema_at", function()
         -- data matches first branch
         local s = sn.raw_schema_at(schema, { x = "hello" }, make_dt({ "x" }), 0)
         assert.not_nil(s)
+        assert(s)
         assert.equals("string", s.type)
     end)
 
@@ -296,6 +307,7 @@ describe("schema_nav.raw_schema_at", function()
         }
         local s = sn.raw_schema_at(schema, "hi", make_dt({}), 0)
         assert.not_nil(s)
-        assert.not_nil(s.oneOf)  -- not flattened at the end
+        assert(s)
+        assert.not_nil(s.oneOf) -- not flattened at the end
     end)
 end)

@@ -16,7 +16,7 @@ A Neovim plugin providing a full TOML processing pipeline and a schema-driven LS
   - Completions (keys, values, enum suggestions, `[table]` / `[[aot]]` headers)
   - Hover (title, description, type, default)
   - Formatting
-  - Document symbols (top-level keys)
+  - Document symbols (full hierarchy: nested children, schema-aware SymbolKinds — `Module` for top-level sections, `Object`/`Array`/`String`/`Number`/`Boolean` for nested nodes, value previews as detail)
   - Code actions (extensible — see below)
 - Per-document schema: the schema factory receives `(bufnr, uri)` and can return a different schema per file
 - Debug dump commands (CST, DecodeTree, raw data) — off by default

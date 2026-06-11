@@ -230,7 +230,7 @@ end
 ---@return string
 function M.encode_aot_entry(aot_key, item)
     local out = { "[[" .. quote_key(aot_key) .. "]]" }
-    emit_section({}, item, out)
+    emit_section({ aot_key }, item, out)
     return table.concat(out, "\n")
 end
 

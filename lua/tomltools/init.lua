@@ -4,7 +4,7 @@ local validator = require("tomltools.toml.validator")
 local inspect   = require("tomltools.toml.inspect")
 local encoder   = require("tomltools.toml.encoder")
 
-local M = {}
+local M         = {}
 
 ---@class tomltools.Error
 ---@field range   integer[]?  { r1, c1, r2, c2 } 0-indexed; nil when location is unknown
@@ -71,12 +71,12 @@ end
 
 --- Encode a Lua table as TOML text lines.
 ---@param t    table
----@param opts { style: "inline"|"aot", key: string?, indent: string? }
+---@param opts { style: "inline"|"aot", key: string?, indent: string? }?
 ---@return string[]
 function M.encode(t, opts)
     local text
-    if opts.style == "inline" then
-        text = encoder.encode_inline(t, { multiline = true, indent = opts.indent or "" })
+    if not opts or opts.style == "inline" then
+        text = encoder.encode_inline(t, { multiline = true, indent = opts and opts.indent or "" })
     else
         text = encoder.encode_aot_entry(assert(opts.key, "encode: key required for aot style"), t)
     end

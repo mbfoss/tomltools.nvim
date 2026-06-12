@@ -1,6 +1,8 @@
 local parser    = require("tomltools.toml.parser")
 local decoder   = require("tomltools.toml.decoder")
 local validator = require("tomltools.toml.validator")
+local inspect   = require("tomltools.toml.inspect")
+local encoder   = require("tomltools.toml.encoder")
 
 local M = {}
 
@@ -54,6 +56,31 @@ function M.parse(text, schema)
         data   = decoded.data,
         errors = errors,
     }
+end
+
+--- Find the TOML structural path at the cursor position.
+--- Returns a list of PathNodes (outermost first), `{}` at document root,
+--- or nil when parsing fails or cursor is not at an addressable position.
+---@param text string
+---@param row  integer  0-indexed
+---@param col  integer  0-indexed
+---@return tomltools.PathNode[]?
+function M.find_path(text, row, col)
+    return inspect.find_path(text, row, col)
+end
+
+--- Encode a Lua table as TOML text lines.
+---@param t    table
+---@param opts { style: "inline"|"aot", key: string?, indent: string? }
+---@return string[]
+function M.encode(t, opts)
+    local text
+    if opts.style == "inline" then
+        text = encoder.encode_inline(t, { multiline = true, indent = opts.indent or "" })
+    else
+        text = encoder.encode_aot_entry(assert(opts.key, "encode: key required for aot style"), t)
+    end
+    return vim.split(text, "\n", { plain = true })
 end
 
 return M

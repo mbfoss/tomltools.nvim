@@ -100,8 +100,8 @@ function M.fill_required_keys(ctx, params)
     if not (ctx.cst and ctx.decode_tree and ctx.schema and ctx.lines) then return {} end
 
     local cst    = ctx.cst
-    local dt     = ctx.decode_tree
-    local schema = ctx.schema
+    local dt     = ctx.decode_tree --[[@as tomltools.toml.DecodeTree]]
+    local schema = ctx.schema      --[[@as table]]
     local data   = ctx.data
     local row    = params.range.start.line
     local col    = params.range.start.character
@@ -133,9 +133,10 @@ function M.fill_required_keys(ctx, params)
     -- Insert after the last line of the enclosing section (or end of document).
     local ins_row, ins_col
     if scope_id then
-        local r  = cst:range(scope_id)
-        ins_row  = r[3]
-        ins_col  = r[4]
+        local r = cst:range(scope_id)
+        if not r then return {} end
+        ins_row = r[3]
+        ins_col = r[4]
     else
         ins_row = #ctx.lines - 1
         ins_col = #(ctx.lines[#ctx.lines] or "")
@@ -205,13 +206,15 @@ function M.expand_inline_table(ctx, params)
         or header
 
     local kvp_r = cst:range(kvp_id)
+    if not kvp_r then return {} end
 
     -- Determine the insertion point: end of the enclosing section (or EOF).
     local ins_row, ins_col
     if section_id then
-        local r  = cst:range(section_id)
-        ins_row  = r[3]
-        ins_col  = r[4]
+        local r = cst:range(section_id)
+        if not r then return {} end
+        ins_row = r[3]
+        ins_col = r[4]
     else
         ins_row = #ctx.lines - 1
         ins_col = #(ctx.lines[#ctx.lines] or "")
@@ -246,8 +249,8 @@ function M.insert_default_value(ctx, params)
     if not (ctx.cst and ctx.decode_tree and ctx.schema) then return {} end
 
     local cst    = ctx.cst
-    local dt     = ctx.decode_tree
-    local schema = ctx.schema
+    local dt     = ctx.decode_tree --[[@as tomltools.toml.DecodeTree]]
+    local schema = ctx.schema      --[[@as table]]
     local data   = ctx.data
     local row    = params.range.start.line
     local col    = params.range.start.character

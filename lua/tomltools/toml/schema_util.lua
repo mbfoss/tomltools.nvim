@@ -23,13 +23,34 @@ function M.get_type_label(node)
 end
 
 function M.get_default_toml(node)
-  if not node or node.default == nil then return "" end
-  if type(node.default) == "string" then
-    return string.format("%q", node.default)
-  elseif type(node.default) == "table" then
-    return vim.inspect(node.default):gsub("%s+", "")
+  if not node then return "" end
+  if node.default ~= nil then
+    if type(node.default) == "string" then
+      return string.format("%q", node.default)
+    elseif type(node.default) == "table" then
+      return vim.inspect(node.default):gsub("%s+", "")
+    end
+    return tostring(node.default)
   end
-  return tostring(node.default)
+  local t = (function()
+    if not node.type then return nil end
+    if type(node.type) == "string" then return node.type end
+    for _, v in ipairs(node.type) do if v ~= "null" then return v end end
+  end)()
+  if t == "string" then
+    return '""'
+  elseif t == "integer" then
+    return "0"
+  elseif t == "number" then
+    return "0.0"
+  elseif t == "boolean" then
+    return "false"
+  elseif t == "array" then
+    return "[]"
+  elseif t == "object" then
+    return "{}"
+  end
+  return ""
 end
 
 function M.is_required(parent_node, key)

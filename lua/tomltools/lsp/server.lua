@@ -93,7 +93,6 @@ local function parse_document(uri, text)
         decode_errors         = {},
         decode_tree           = nil,
         parse_results         = nil,
-        code_action_providers = actions.providers,
     }
     if parsed.cst then
         local decoded     = decoder.decode(parsed.cst)
@@ -376,7 +375,7 @@ local function dispatch(msg)
         ensure_parsed(uri)
         ctx = documents[uri] or ctx
         local results = {}
-        for _, provider in ipairs(ctx.code_action_providers or {}) do
+        for _, provider in ipairs(actions.providers) do
             vim.list_extend(results, provider(ctx, params) or {})
         end
         cb(nil, results)

@@ -9,19 +9,19 @@ local _lua   = vim.fn.fnamemodify(_src, ":h:h:h")  -- .../lua
 package.path = _lua .. "/?.lua;" .. _lua .. "/?/init.lua;" .. package.path
 
 -- ── Imports ──────────────────────────────────────────────────────────────────
-local parser      = require("tomltools.toml.parser")
-local decoder     = require("tomltools.toml.decoder")
-local diagnostics = require("tomltools.lsp.diagnostics")
-local completion  = require("tomltools.lsp.completion")
-local hover       = require("tomltools.lsp.hover")
-local code_action = require("tomltools.lsp.code_action")
-local doc_symbol  = require("tomltools.lsp.document_symbol")
-local fmt         = require("tomltools.lsp.format")
+local parser          = require("tomltools.toml.parser")
+local decoder         = require("tomltools.toml.decoder")
+local diagnostics     = require("tomltools.lsp.diagnostics")
+local completion      = require("tomltools.lsp.completion")
+local hover           = require("tomltools.lsp.hover")
+local actions         = require("tomltools.lsp.actions")
+local doc_symbol      = require("tomltools.lsp.symbols")
+local fmt             = require("tomltools.lsp.format")
 
 -- ── Transport ─────────────────────────────────────────────────────────────────
 local uv     = vim.uv
-local stdin  = uv.new_pipe(false)
-local stdout = uv.new_pipe(false)
+local stdin  = assert(uv.new_pipe(false))
+local stdout = assert(uv.new_pipe(false))
 stdin:open(0)
 stdout:open(1)
 
@@ -83,16 +83,17 @@ local function parse_document(uri, text)
     local lines  = vim.split(text, "\n", { plain = true })
     local parsed = parser.parse(text)
     local ctx    = {
-        bufnr         = nil,
-        schema        = schemas[uri] or {},
-        text          = text,
-        lines         = lines,
-        cst           = parsed.cst,
-        parse_errors  = parsed.errors,
-        data          = nil,
-        decode_errors = {},
-        decode_tree   = nil,
-        parse_results = nil,
+        bufnr                 = nil,
+        schema                = schemas[uri] or {},
+        text                  = text,
+        lines                 = lines,
+        cst                   = parsed.cst,
+        parse_errors          = parsed.errors,
+        data                  = nil,
+        decode_errors         = {},
+        decode_tree           = nil,
+        parse_results         = nil,
+        code_action_providers = actions.providers,
     }
     if parsed.cst then
         local decoded     = decoder.decode(parsed.cst)
@@ -373,7 +374,12 @@ local function dispatch(msg)
 
     if method == "textDocument/codeAction" then
         ensure_parsed(uri)
-        code_action.handler(ctx, params, cb)
+        ctx = documents[uri] or ctx
+        local results = {}
+        for _, provider in ipairs(ctx.code_action_providers or {}) do
+            vim.list_extend(results, provider(ctx, params) or {})
+        end
+        cb(nil, results)
         return
     end
 

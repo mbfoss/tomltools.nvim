@@ -147,7 +147,7 @@ function M.handler(context, params, callback)
     local col    = params.position.character
 
     local lines = context.lines
-    if not lines or row >= #lines or col > #(lines[row + 1] or "") then
+    if not dt or not lines or row >= #lines or col > #(lines[row + 1] or "") then
         callback(nil, empty_result); return
     end
 
@@ -156,6 +156,7 @@ function M.handler(context, params, callback)
     local tok_k     = tok_d and tok_d.kind --[[@as tomltools.toml.CstKind?]]
     local is_trivia = tok_k == K.Whitespace or tok_k == K.Newline or tok_k == K.Comment
 
+    -- [table.header] → suggest valid table paths from schema
     local hdr_id = cst:ancestor_of_kind(tok_id, K.TableHeader)
     if hdr_id then
         local typed = vim.tbl_map(function(kd) return kd.value end, cst:get_keys(hdr_id))
@@ -163,6 +164,7 @@ function M.handler(context, params, callback)
         return
     end
 
+    -- [[array.of.tables]] header → suggest valid AoT paths from schema
     local aot_id = cst:ancestor_of_kind(tok_id, K.AotHeader)
     if aot_id then
         local typed = vim.tbl_map(function(kd) return kd.value end, cst:get_keys(aot_id))
@@ -170,6 +172,8 @@ function M.handler(context, params, callback)
         return
     end
 
+    -- Cursor is inside a key-value pair (key = value).
+    -- Ancestor search stops at InlineTable boundaries so we don't escape inline scope.
     local anc    = cst:ancestor_of_kind(tok_id, K.KeyValuePair, K.InlineTable)
     local kvp_id = (anc and cst:kind(anc) == K.KeyValuePair and anc)
         or (tok_k == K.KeyValuePair and tok_id)
@@ -177,8 +181,11 @@ function M.handler(context, params, callback)
 
     if kvp_id then
         if cursor_after_equals(cst, kvp_id, row, col) then
+            -- Value side: suggest enum members, booleans, [] / {} starters.
             local val_id   = cst:get_value(kvp_id)
             local in_array = directly_in_array(cst, tok_id)
+            -- Suppress if the value is already complete (trivia after a non-array value,
+            -- or cursor on ] closing an inline array).
             if (is_trivia and val_id and not in_array) or tok_k == K.RBracket then
                 callback(nil, empty_result); return
             end
@@ -186,15 +193,21 @@ function M.handler(context, params, callback)
             local dt_id = cst:get_tag(kvp_id)
             local sch
             if dt_id then
+                -- KVP is already decoded: look up its schema directly.
                 if in_array then
+                    -- Cursor inside an inline array literal → offer the array item schema.
                     sch = schema_nav.schema_at(schema, data, dt, dt_id)
                     sch = sch and sch.items
                 else
+                    -- Use raw (non-flattened) schema so value_items can enumerate all oneOf branches.
                     sch = schema_nav.raw_schema_at(schema, data, dt, dt_id)
                 end
             else
+                -- KVP not yet in the decode tree (incomplete / new key): resolve schema
+                -- by navigating from the enclosing section's schema using the typed key path.
                 local enc_id  = cst:ancestor_of_kind(kvp_id, K.TableSection, K.AotSection, K.InlineTable)
                 local enc_tag = enc_id and cst:get_tag(enc_id)
+                -- Inline table not yet decoded → no schema context available.
                 if enc_id and cst:kind(enc_id) == K.InlineTable and not enc_tag then
                     callback(nil, empty_result); return
                 end
@@ -209,12 +222,15 @@ function M.handler(context, params, callback)
             local path       = dt_id and dt:key_parts_of(dt_id) or {}
             callback(nil, result(value_items(sch, open_quote, { data = data, path = path })))
         else
+            -- Key side: suggest sibling keys allowed by the parent schema.
             local keys = cst:get_keys(kvp_id)
+            -- Trivia after a complete key (e.g. "key<space><cursor>") → nothing to complete.
             if is_trivia and #keys > 0 then callback(nil, empty_result); return end
 
             local dt_id     = cst:get_tag(kvp_id)
             local parent_id = dt_id and dt:get_parent_id(dt_id)
             if not parent_id then
+                -- KVP not yet decoded: find the enclosing section to get the parent scope.
                 local enc_id  = cst:ancestor_of_kind(kvp_id, K.TableSection, K.AotSection, K.InlineTable)
                 local enc_tag = enc_id and cst:get_tag(enc_id)
                 if enc_id and cst:kind(enc_id) == K.InlineTable and not enc_tag then
@@ -227,9 +243,11 @@ function M.handler(context, params, callback)
         return
     end
 
+    -- Cursor is in whitespace between KVPs inside a section or inline table.
     local scope_id = cst:ancestor_of_kind(tok_id, K.InlineTable, K.TableSection, K.AotSection)
     if scope_id then
         local scope_tag = cst:get_tag(scope_id)
+        -- Inline table not yet decoded → no schema context available.
         if not scope_tag and cst:kind(scope_id) == K.InlineTable then
             callback(nil, empty_result); return
         end
@@ -237,6 +255,7 @@ function M.handler(context, params, callback)
         return
     end
 
+    -- Cursor at document root (no enclosing section) → top-level keys.
     if tok_k == K.Document or cst:ancestor_of_kind(tok_id, K.Document) then
         callback(nil, result(key_items(schema_for_node(schema, data, dt, dt:root_id()))))
         return

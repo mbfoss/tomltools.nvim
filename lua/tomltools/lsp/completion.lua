@@ -11,18 +11,21 @@ local IF           = vim.lsp.protocol.InsertTextFormat
 local empty_result = { isIncomplete = false, items = {} }
 local function result(items) return { isIncomplete = false, items = items } end
 
----@param schema table?
+---@param schema   table?
+---@param existing table<string, boolean>?
 ---@return lsp.CompletionItem[]
-local function key_items(schema)
+local function key_items(schema, existing)
     local items = {}
     for _, entry in ipairs(s_util.get_ordered_properties(schema)) do
-        items[#items + 1] = {
-            label         = entry.key,
-            kind          = CK.Field,
-            detail        = s_util.get_type_label(entry.schema),
-            documentation = s_util.get_description(entry.schema),
-            insertText    = entry.key,
-        }
+        if not (existing and existing[entry.key]) then
+            items[#items + 1] = {
+                label         = entry.key,
+                kind          = CK.Field,
+                detail        = s_util.get_type_label(entry.schema),
+                documentation = s_util.get_description(entry.schema),
+                insertText    = entry.key,
+            }
+        end
     end
     return items
 end
@@ -245,7 +248,7 @@ function M.handler(context, params, callback)
                 end
                 parent_id = enc_tag or dt:root_id()
             end
-            callback(nil, result(key_items(schema_for_node(schema, data, dt, parent_id))))
+            callback(nil, result(key_items(schema_for_node(schema, data, dt, parent_id), dt:child_keys(parent_id))))
         end
         return
     end
@@ -258,13 +261,14 @@ function M.handler(context, params, callback)
         if not scope_tag and cst:kind(scope_id) == K.InlineTable then
             callback(nil, empty_result); return
         end
-        callback(nil, result(key_items(schema_for_node(schema, data, dt, scope_tag))))
+        callback(nil, result(key_items(schema_for_node(schema, data, dt, scope_tag), dt:child_keys(scope_tag))))
         return
     end
 
     -- Cursor at document root (no enclosing section) → top-level keys.
     if tok_k == K.Document or cst:ancestor_of_kind(tok_id, K.Document) then
-        callback(nil, result(key_items(schema_for_node(schema, data, dt, dt:root_id()))))
+        local root_id = dt:root_id()
+        callback(nil, result(key_items(schema_for_node(schema, data, dt, root_id), dt:child_keys(root_id))))
         return
     end
 

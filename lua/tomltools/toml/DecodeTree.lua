@@ -270,6 +270,18 @@ end
 -- Path utilities
 --------------------------------------------------------------------------------
 
+-- Returns a set of immediate child keys under parent_id.
+---@param parent_id integer?
+---@return table<string, boolean>
+function DecodeTree:child_keys(parent_id)
+    if not parent_id or not self._tree:have_item(parent_id) then return {} end
+    local keys = {}
+    for _, data in self._tree:iter_children(parent_id) do
+        keys[data.key] = true
+    end
+    return keys
+end
+
 -- Returns the key segments from root down to id (not including root).
 ---@param id integer
 ---@return string[]

@@ -1,6 +1,6 @@
 -- tomltools/toml/schema_nav.lua
 -- Shared schema navigation: flatten, schema_at, and cursor resolution via DecodeTree.
-local M = {}
+local M         = {}
 
 local vu        = require("tomltools.toml.validator_util")
 local validator = require("tomltools.toml.validator")
@@ -182,7 +182,7 @@ function M.raw_schema_at(root_schema, root_data, dt, id)
     end
   end
 
-  return s  -- intentionally not flattened
+  return s -- intentionally not flattened
 end
 
 return M

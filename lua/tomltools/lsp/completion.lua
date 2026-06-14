@@ -1,12 +1,12 @@
-local M = {}
+local M            = {}
 
-local s_util     = require("tomltools.toml.schema_util")
-local schema_nav = require("tomltools.toml.schema_nav")
-local Cst        = require("tomltools.toml.Cst")
+local s_util       = require("tomltools.toml.schema_util")
+local schema_nav   = require("tomltools.toml.schema_nav")
+local Cst          = require("tomltools.toml.Cst")
 
-local CK = vim.lsp.protocol.CompletionItemKind
-local K  = Cst.Kind
-local IF = vim.lsp.protocol.InsertTextFormat
+local CK           = vim.lsp.protocol.CompletionItemKind
+local K            = Cst.Kind
+local IF           = vim.lsp.protocol.InsertTextFormat
 
 local empty_result = { isIncomplete = false, items = {} }
 local function result(items) return { isIncomplete = false, items = items } end
@@ -73,9 +73,12 @@ local function value_items(schema, open_quote, ctx)
         }
     end
     local items = {}
-    if has("array")                     then items[#items+1] = { label = "[]", documentation = desc, kind = CK.Value, insertTextFormat = IF.Snippet, insertText = "[$1]" } end
-    if has("object")                    then items[#items+1] = { label = "{}", documentation = desc, kind = CK.Value, insertTextFormat = IF.Snippet, insertText = "{$1}" } end
-    if not open_quote and has("string") then items[#items+1] = { label = '"',  documentation = desc, kind = CK.Text,  insertText = '"' } end
+    if has("array") then items[#items + 1] = { label = "[]", documentation = desc, kind = CK.Value, insertTextFormat = IF
+        .Snippet, insertText = "[$1]" } end
+    if has("object") then items[#items + 1] = { label = "{}", documentation = desc, kind = CK.Value, insertTextFormat =
+        IF.Snippet, insertText = "{$1}" } end
+    if not open_quote and has("string") then items[#items + 1] = { label = '"', documentation = desc, kind = CK.Text, insertText =
+        '"' } end
     return items
 end
 
@@ -85,8 +88,8 @@ end
 ---@param typed_keys  string[]
 ---@return lsp.CompletionItem[]
 local function header_items(gather_fn, root_schema, root_data, typed_keys)
-    local flat   = schema_nav.flatten(root_schema, root_data)
-    local paths  = {}
+    local flat  = schema_nav.flatten(root_schema, root_data)
+    local paths = {}
     gather_fn(flat, "", paths)
     local prefix = table.concat(typed_keys, ".")
     local items  = {}
@@ -99,8 +102,10 @@ local function header_items(gather_fn, root_schema, root_data, typed_keys)
 end
 
 local function schema_for_node(schema, data, dt, dt_id)
-    return (dt_id and schema_nav.schema_at(schema, data, dt, dt_id))
-        or schema_nav.flatten(schema, data)
+    if dt_id then
+        return schema_nav.schema_at(schema, data, dt, dt_id)
+    end
+    return schema_nav.flatten(schema, data)
 end
 
 local function schema_for_keys(parent_sch, keys)
@@ -146,7 +151,7 @@ function M.handler(context, params, callback)
     local row    = params.position.line
     local col    = params.position.character
 
-    local lines = context.lines
+    local lines  = context.lines
     if not dt or not lines or row >= #lines or col > #(lines[row + 1] or "") then
         callback(nil, empty_result); return
     end
@@ -157,7 +162,7 @@ function M.handler(context, params, callback)
     local is_trivia = tok_k == K.Whitespace or tok_k == K.Newline or tok_k == K.Comment
 
     -- [table.header] → suggest valid table paths from schema
-    local hdr_id = cst:ancestor_of_kind(tok_id, K.TableHeader)
+    local hdr_id    = cst:ancestor_of_kind(tok_id, K.TableHeader)
     if hdr_id then
         local typed = vim.tbl_map(function(kd) return kd.value end, cst:get_keys(hdr_id))
         callback(nil, result(header_items(s_util.gather_table_paths, schema, data, typed)))
@@ -214,7 +219,7 @@ function M.handler(context, params, callback)
                 local enc_dt     = enc_tag or dt:root_id()
                 local parent_sch = schema_nav.schema_at(schema, data, dt, enc_dt)
                     or schema_nav.flatten(schema, data)
-                sch = schema_for_keys(parent_sch, cst:get_keys(kvp_id))
+                sch              = schema_for_keys(parent_sch, cst:get_keys(kvp_id))
                 if in_array then sch = sch and schema_nav.flatten(sch, data).items end
             end
 
@@ -225,7 +230,9 @@ function M.handler(context, params, callback)
             -- Key side: suggest sibling keys allowed by the parent schema.
             local keys = cst:get_keys(kvp_id)
             -- Trivia after a complete key (e.g. "key<space><cursor>") → nothing to complete.
-            if is_trivia and #keys > 0 then callback(nil, empty_result); return end
+            if is_trivia and #keys > 0 then
+                callback(nil, empty_result); return
+            end
 
             local dt_id     = cst:get_tag(kvp_id)
             local parent_id = dt_id and dt:get_parent_id(dt_id)

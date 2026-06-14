@@ -109,7 +109,6 @@ function M.fill_required_keys(ctx, params)
     local scope_id, dt_id = enclosing_scope(cst, dt, row, col)
 
     local sch             = schema_nav.schema_at(schema, data, dt, dt_id)
-        or schema_nav.flatten(schema, data)
     if not sch or not sch.required or #sch.required == 0 then return {} end
 
     -- Collect required keys absent from the decode tree for this scope.

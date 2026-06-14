@@ -9,6 +9,8 @@ local K            = Cst.Kind
 local IF           = vim.lsp.protocol.InsertTextFormat
 
 local empty_result = { isIncomplete = false, items = {} }
+---@param items lsp.CompletionItem[]
+---@return lsp.CompletionList
 local function result(items) return { isIncomplete = false, items = items } end
 
 ---@param schema   table?
@@ -104,6 +106,11 @@ local function header_items(gather_fn, root_schema, root_data, typed_keys)
     return items
 end
 
+---@param schema table
+---@param data   any
+---@param dt     tomltools.toml.DecodeTree
+---@param dt_id  integer?
+---@return table?
 local function schema_for_node(schema, data, dt, dt_id)
     if dt_id then
         return schema_nav.schema_at(schema, data, dt, dt_id)
@@ -111,6 +118,9 @@ local function schema_for_node(schema, data, dt, dt_id)
     return schema_nav.flatten(schema, data)
 end
 
+---@param parent_sch table?
+---@param keys       tomltools.toml.CstData[]
+---@return table?
 local function schema_for_keys(parent_sch, keys)
     if #keys == 0 then return nil end
     local sch = parent_sch
@@ -124,6 +134,11 @@ local function schema_for_keys(parent_sch, keys)
     return sch
 end
 
+---@param cst    tomltools.toml.Cst
+---@param kvp_id integer
+---@param row    integer
+---@param col    integer
+---@return boolean
 local function cursor_after_equals(cst, kvp_id, row, col)
     for _, d in cst:iter_semantic(kvp_id) do
         if d.kind == K.Equals then
@@ -134,6 +149,9 @@ local function cursor_after_equals(cst, kvp_id, row, col)
     return false
 end
 
+---@param cst    tomltools.toml.Cst
+---@param tok_id integer
+---@return boolean
 local function directly_in_array(cst, tok_id)
     local anc = cst:ancestor_of_kind(tok_id, K.Array, K.InlineTable)
     return anc ~= nil and cst:kind(anc) == K.Array
@@ -221,7 +239,6 @@ function M.handler(context, params, callback)
                 end
                 local enc_dt     = enc_tag or dt:root_id()
                 local parent_sch = schema_nav.schema_at(schema, data, dt, enc_dt)
-                    or schema_nav.flatten(schema, data)
                 sch              = schema_for_keys(parent_sch, cst:get_keys(kvp_id))
                 if in_array then sch = sch and schema_nav.flatten(sch, data).items end
             end

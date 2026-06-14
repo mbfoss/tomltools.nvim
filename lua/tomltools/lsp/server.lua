@@ -4,24 +4,29 @@
 -- with Content-Length framing (standard LSP transport).
 
 -- ── Module resolution ────────────────────────────────────────────────────────
-local _src   = debug.getinfo(1, "S").source:sub(2)
-local _lua   = vim.fn.fnamemodify(_src, ":h:h:h")  -- .../lua
-package.path = _lua .. "/?.lua;" .. _lua .. "/?/init.lua;" .. package.path
+local _src     = debug.getinfo(1, "S").source:sub(2)
+local _lua     = vim.fn.fnamemodify(_src, ":h:h:h") -- .../lua
+package.path   = _lua .. "/?.lua;" .. _lua .. "/?/init.lua;" .. package.path
+
+package.path   = package.path .. ";" .. vim.env.HOME .. "/.luarocks/share/lua/5.4/?.lua"
+package.cpath  = package.cpath .. ";" .. vim.env.HOME .. "/.luarocks/lib/lua/5.1/socket/core.so"
+local LuaPanda = require("LuaPanda")
+LuaPanda.start("127.0.0.1", 8818)
 
 -- ── Imports ──────────────────────────────────────────────────────────────────
-local parser          = require("tomltools.toml.parser")
-local decoder         = require("tomltools.toml.decoder")
-local diagnostics     = require("tomltools.lsp.diagnostics")
-local completion      = require("tomltools.lsp.completion")
-local hover           = require("tomltools.lsp.hover")
-local actions         = require("tomltools.lsp.actions")
-local doc_symbol      = require("tomltools.lsp.symbols")
-local fmt             = require("tomltools.lsp.format")
+local parser      = require("tomltools.toml.parser")
+local decoder     = require("tomltools.toml.decoder")
+local diagnostics = require("tomltools.lsp.diagnostics")
+local completion  = require("tomltools.lsp.completion")
+local hover       = require("tomltools.lsp.hover")
+local actions     = require("tomltools.lsp.actions")
+local doc_symbol  = require("tomltools.lsp.symbols")
+local fmt         = require("tomltools.lsp.format")
 
 -- ── Transport ─────────────────────────────────────────────────────────────────
-local uv     = vim.uv
-local stdin  = assert(uv.new_pipe(false))
-local stdout = assert(uv.new_pipe(false))
+local uv          = vim.uv
+local stdin       = assert(uv.new_pipe(false))
+local stdout      = assert(uv.new_pipe(false))
 stdin:open(0)
 stdout:open(1)
 
@@ -47,10 +52,10 @@ log("server starting, pid=" .. tostring(uv.os_getpid()), MessageType.Info)
 
 -- ── Server state ─────────────────────────────────────────────────────────────
 ---@type table<string, tomltools.LspBufferContext>
-local documents  = {}   -- uri → context
+local documents         = {} -- uri → context
 ---@type table<string, table>
-local schemas    = {}   -- uri → decoded schema table
-local debug_commands = false
+local schemas           = {} -- uri → decoded schema table
+local debug_commands    = false
 
 -- ── Capabilities ─────────────────────────────────────────────────────────────
 local INITIALIZE_RESULT = {
@@ -69,12 +74,12 @@ local INITIALIZE_RESULT = {
 
 -- ── Document helpers ──────────────────────────────────────────────────────────
 
-local DIAG_DEBOUNCE_MS = 200
+local DIAG_DEBOUNCE_MS  = 200
 
 ---@type table<string, string>
-local doc_text   = {}
+local doc_text          = {}
 ---@type table<string, any>
-local diag_timer = {}
+local diag_timer        = {}
 
 ---@param uri  string
 ---@param text string
@@ -83,16 +88,16 @@ local function parse_document(uri, text)
     local lines  = vim.split(text, "\n", { plain = true })
     local parsed = parser.parse(text)
     local ctx    = {
-        bufnr                 = nil,
-        schema                = schemas[uri] or {},
-        text                  = text,
-        lines                 = lines,
-        cst                   = parsed.cst,
-        parse_errors          = parsed.errors,
-        data                  = nil,
-        decode_errors         = {},
-        decode_tree           = nil,
-        parse_results         = nil,
+        bufnr         = nil,
+        schema        = schemas[uri] or {},
+        text          = text,
+        lines         = lines,
+        cst           = parsed.cst,
+        parse_errors  = parsed.errors,
+        data          = nil,
+        decode_errors = {},
+        decode_tree   = nil,
+        parse_results = nil,
     }
     if parsed.cst then
         local decoded     = decoder.decode(parsed.cst)
@@ -154,8 +159,8 @@ end
 ---@return string
 local function apply_incremental(text, change)
     if not change.range then return change.text end
-    local r     = change.range
-    local lines = vim.split(text, "\n", { plain = true })
+    local r      = change.range
+    local lines  = vim.split(text, "\n", { plain = true })
 
     local before = {}
     for i = 1, r.start.line do before[#before + 1] = lines[i] end
@@ -192,11 +197,11 @@ dump_cst = function(ctx)
     if not ctx or not ctx.cst then return "(no CST)" end
     local lines = {}
     ctx.cst._tree:walk_tree(function(id, d, depth)
-        local indent = string.rep("  ", depth)
-        local kind   = d.kind ~= nil and tostring(d.kind) or "?"
-        local text   = d.text ~= nil and (" text=" .. vim.inspect(d.text:sub(1, 60))) or ""
-        local value  = d.value ~= nil and (" value=" .. vim.inspect(d.value)) or ""
-        local rng    = d.range and (" range=[" .. table.concat(d.range, ",") .. "]") or ""
+        local indent      = string.rep("  ", depth)
+        local kind        = d.kind ~= nil and tostring(d.kind) or "?"
+        local text        = d.text ~= nil and (" text=" .. vim.inspect(d.text:sub(1, 60))) or ""
+        local value       = d.value ~= nil and (" value=" .. vim.inspect(d.value)) or ""
+        local rng         = d.range and (" range=[" .. table.concat(d.range, ",") .. "]") or ""
         lines[#lines + 1] = indent .. "[" .. id .. "] " .. kind .. text .. value .. rng
         return true
     end)
@@ -208,9 +213,9 @@ dump_decode_tree = function(ctx)
     local dt    = ctx.decode_tree
     local lines = {}
     dt._tree:walk_tree(function(id, d, depth)
-        local indent  = string.rep("  ", depth)
-        local key     = d.key ~= nil and (" key=" .. vim.inspect(d.key)) or ""
-        local ranges  = ""
+        local indent = string.rep("  ", depth)
+        local key    = d.key ~= nil and (" key=" .. vim.inspect(d.key)) or ""
+        local ranges = ""
         if d.ranges and #d.ranges > 0 then
             local rs = {}
             for _, r in ipairs(d.ranges) do rs[#rs + 1] = "[" .. table.concat(r, ",") .. "]" end
@@ -303,7 +308,9 @@ local function dispatch(msg)
     if method == "textDocument/didClose" then
         local uri = params.textDocument.uri
         local t   = diag_timer[uri]
-        if t then t:stop(); t:close(); diag_timer[uri] = nil end
+        if t then
+            t:stop(); t:close(); diag_timer[uri] = nil
+        end
         doc_text[uri]  = nil
         documents[uri] = nil
         schemas[uri]   = nil
@@ -336,16 +343,10 @@ local function dispatch(msg)
     end
 
     -- ── Feature requests ─────────────────────────────────────────────────────
-    local uri = params.textDocument and params.textDocument.uri
-    if not uri then
-        respond_err(id, -32602, "missing textDocument.uri")
-        return
-    end
-
-    local ctx = documents[uri]
-    if not ctx then
-        respond(id, vim.NIL)
-        return
+    local function doc_uri()
+        local uri = params.textDocument and params.textDocument.uri
+        if not uri then respond_err(id, -32602, "missing textDocument.uri") end
+        return uri
     end
 
     local function cb(err, res)
@@ -358,22 +359,32 @@ local function dispatch(msg)
     end
 
     if method == "textDocument/completion" then
+        local uri = doc_uri(); if not uri then return end
         ensure_parsed(uri)
-        ctx = documents[uri] or ctx
+        local ctx = documents[uri]; if not ctx then
+            respond(id, vim.NIL); return
+        end
         local ok, err = pcall(completion.handler, ctx, params, cb)
         if not ok then log("completion pcall error: " .. tostring(err), MessageType.Error) end
         return
     end
 
     if method == "textDocument/hover" then
+        local uri = doc_uri(); if not uri then return end
         ensure_parsed(uri)
+        local ctx = documents[uri]; if not ctx then
+            respond(id, vim.NIL); return
+        end
         hover.handler(ctx, params, cb)
         return
     end
 
     if method == "textDocument/codeAction" then
+        local uri = doc_uri(); if not uri then return end
         ensure_parsed(uri)
-        ctx = documents[uri] or ctx
+        local ctx = documents[uri]; if not ctx then
+            respond(id, vim.NIL); return
+        end
         local results = {}
         for _, provider in ipairs(actions.providers) do
             vim.list_extend(results, provider(ctx, params) or {})
@@ -384,13 +395,21 @@ local function dispatch(msg)
 
     if method == "textDocument/formatting"
         or method == "textDocument/rangeFormatting" then
+        local uri = doc_uri(); if not uri then return end
         ensure_parsed(uri)
+        local ctx = documents[uri]; if not ctx then
+            respond(id, vim.NIL); return
+        end
         fmt.handler(ctx, params, cb)
         return
     end
 
     if method == "textDocument/documentSymbol" then
+        local uri = doc_uri(); if not uri then return end
         ensure_parsed(uri)
+        local ctx = documents[uri]; if not ctx then
+            respond(id, vim.NIL); return
+        end
         doc_symbol.handler(ctx, params, cb)
         return
     end

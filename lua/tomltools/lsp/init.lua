@@ -17,6 +17,9 @@ local attached = {}
 ---@field schema         (fun(buf: integer, uri: string): table)?
 ---@field commands       table?   caller-supplied vim.lsp.commands handlers
 ---@field debug_commands boolean? enable debug dump LSP requests
+---@field debug_lua      boolean? attach the LuaPanda debugger to the server process (default: false)
+---@field debug_lua_host string?  LuaPanda host (default: "127.0.0.1")
+---@field debug_lua_port integer? LuaPanda port (default: 8818)
 
 ---@param buf  integer
 ---@param opts tomltools.LspStartOpts?
@@ -38,7 +41,12 @@ function M.start(buf, opts)
     local config = {
         name         = M.SERVER_NAME,
         cmd          = { vim.v.progpath, "--headless", "--noplugin", "-n", "-u", "NONE", "-l", SERVER_SCRIPT },
-        init_options = { debug_commands = debug_commands },
+        init_options = {
+            debug_commands = debug_commands,
+            debug_lua      = opts.debug_lua or false,
+            debug_lua_host = opts.debug_lua_host,
+            debug_lua_port = opts.debug_lua_port,
+        },
         root_dir     = vim.fn.getcwd(),
 
         -- Push the schema to the server as soon as it attaches to a buffer.

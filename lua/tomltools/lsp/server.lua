@@ -8,10 +8,16 @@ local _src     = debug.getinfo(1, "S").source:sub(2)
 local _lua     = vim.fn.fnamemodify(_src, ":h:h:h") -- .../lua
 package.path   = _lua .. "/?.lua;" .. _lua .. "/?/init.lua;" .. package.path
 
-package.path   = package.path .. ";" .. vim.env.HOME .. "/.luarocks/share/lua/5.4/?.lua"
-package.cpath  = package.cpath .. ";" .. vim.env.HOME .. "/.luarocks/lib/lua/5.1/socket/core.so"
-local LuaPanda = require("LuaPanda")
-LuaPanda.start("127.0.0.1", 8818)
+-- ── LuaPanda debugger (opt-in) ───────────────────────────────────────────────
+-- Disabled by default; enabled via init_options.debug_lua (see initialize).
+local function start_lua_debugger(host, port)
+    package.path  = package.path .. ";" .. vim.env.HOME .. "/.luarocks/share/lua/5.4/?.lua"
+    package.cpath = package.cpath .. ";" .. vim.env.HOME .. "/.luarocks/lib/lua/5.1/socket/core.so"
+    local ok, LuaPanda = pcall(require, "LuaPanda")
+    if not ok then return false, tostring(LuaPanda) end
+    LuaPanda.start(host or "127.0.0.1", port or 8818)
+    return true
+end
 
 -- ── Imports ──────────────────────────────────────────────────────────────────
 local parser      = require("tomltools.toml.parser")
@@ -247,6 +253,16 @@ local function dispatch(msg)
         if opts.debug_commands then
             debug_commands = true
             log("debug commands enabled", MessageType.Log)
+        end
+        if opts.debug_lua then
+            local host = opts.debug_lua_host or "127.0.0.1"
+            local port = opts.debug_lua_port or 8818
+            local ok, err = start_lua_debugger(host, port)
+            if ok then
+                log(("LuaPanda debugger started on %s:%d"):format(host, port), MessageType.Info)
+            else
+                log("failed to start LuaPanda debugger: " .. tostring(err), MessageType.Warning)
+            end
         end
         respond(id, INITIALIZE_RESULT)
         log("initialize done", MessageType.Info)

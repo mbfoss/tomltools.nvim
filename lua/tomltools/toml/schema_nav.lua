@@ -2,8 +2,25 @@
 -- Shared schema navigation: flatten, schema_at, and cursor resolution via DecodeTree.
 local M         = {}
 
-local vu        = require("tomltools.toml.validator_util")
 local validator = require("tomltools.toml.validator")
+
+local function _deep_merge_tables(dest, src)
+  vim.validate("dest", dest, "table")
+  vim.validate("src", src, "table")
+
+  for k, v in pairs(src) do
+    if type(v) == "table" then
+      if type(dest[k]) == "table" and not vim.islist(v) then
+        _deep_merge_tables(dest[k], v)
+      else
+        dest[k] = vim.deepcopy(v)
+      end
+    else
+      dest[k] = v
+    end
+  end
+  return dest
+end
 
 -- Merge allOf, anyOf, oneOf, dependentSchemas; resolve if/then/else against data.
 -- Returns a new flat schema table with conditional keys removed.
@@ -12,20 +29,20 @@ local validator = require("tomltools.toml.validator")
 ---@return table
 function M.flatten(s, d)
   local out = {}
-  vu.deep_merge_tables(out, s)
+  _deep_merge_tables(out, s)
 
   if s.allOf then
     for _, sub in ipairs(s.allOf) do
-      vu.deep_merge_tables(out, M.flatten(sub, d))
+      _deep_merge_tables(out, M.flatten(sub, d))
     end
   end
 
   if s["if"] then
     local ok = validator.validate(s["if"], d)
     if ok and s["then"] then
-      vu.deep_merge_tables(out, M.flatten(s["then"], d))
+      _deep_merge_tables(out, M.flatten(s["then"], d))
     elseif not ok and s["else"] then
-      vu.deep_merge_tables(out, M.flatten(s["else"], d))
+      _deep_merge_tables(out, M.flatten(s["else"], d))
     end
   end
 
@@ -38,7 +55,7 @@ function M.flatten(s, d)
       end
       if best_n == 0 then break end
     end
-    if best then vu.deep_merge_tables(out, M.flatten(best, d)) end
+    if best then _deep_merge_tables(out, M.flatten(best, d)) end
   end
 
   if s.anyOf then
@@ -48,20 +65,20 @@ function M.flatten(s, d)
       local ok, errs = validator.validate(sub, d)
       if ok then
         any_passed = true
-        vu.deep_merge_tables(out, M.flatten(sub, d))
+        _deep_merge_tables(out, M.flatten(sub, d))
       elseif #errs < best_n then
         best_n = #errs; best = sub
       end
     end
     if not any_passed and best then
-      vu.deep_merge_tables(out, M.flatten(best, d))
+      _deep_merge_tables(out, M.flatten(best, d))
     end
   end
 
   if s.dependentSchemas and type(d) == "table" and not vim.islist(d) then
     for prop, subschema in pairs(s.dependentSchemas) do
       if d[prop] ~= nil then
-        vu.deep_merge_tables(out, M.flatten(subschema, d))
+        _deep_merge_tables(out, M.flatten(subschema, d))
       end
     end
   end

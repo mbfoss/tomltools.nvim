@@ -3,7 +3,7 @@
 -- instead of a `nvim --headless` subprocess. See thread_client.lua for the
 -- transport and thread_server.lua for why debug_lua (LuaPanda) isn't
 -- supported here.
-local thread_client = require("tomltools.lsp.thread_client")
+local thread_client = require("tomltools.lsp.client")
 
 local M = {}
 

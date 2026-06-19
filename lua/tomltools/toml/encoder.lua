@@ -234,6 +234,19 @@ function M.encode_aot_entry(aot_key, item)
     return table.concat(out, "\n")
 end
 
+--- Encode a Lua table as a [parent.sub] table-section block.
+--- Returns "[parent.sub]\nfield = val\n..." using ordered/sorted keys.
+---@param parent_key string
+---@param sub_key    string
+---@param item       table
+---@return string
+function M.encode_table_entry(parent_key, sub_key, item)
+    local header = "[" .. quote_key(parent_key) .. "." .. quote_key(sub_key) .. "]"
+    local out    = { header }
+    emit_section({ parent_key, sub_key }, item, out)
+    return table.concat(out, "\n")
+end
+
 --- Encode a Lua table as a TOML string.
 ---@param data table
 ---@return string

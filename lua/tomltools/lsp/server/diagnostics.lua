@@ -3,7 +3,7 @@ local M = {}
 
 local SERVER_NAME = "tomltools-toml"
 
-M.namespace = vim.api.nvim_create_namespace("tomltools-toml")
+--local diagnostics_ns = require("tomltools.lsp").diagnostics_ns
 
 ---@return lsp.Range
 local function to_lsp_range(range)
@@ -103,7 +103,8 @@ function M.publish(bufnr, diagnostics, client_id)
       source   = diag.source,
     }
   end
-  vim.diagnostic.set(M.namespace, bufnr, items)
+  --assert(diagnostics_ns)
+  --vim.diagnostic.set(diagnostics_ns, bufnr, items)
 end
 
 ---@param bufnr integer

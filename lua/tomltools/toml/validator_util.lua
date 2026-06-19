@@ -82,10 +82,8 @@ function M.get_schema_allowed_types(schema)
 end
 
 function M.deep_merge_tables(dest, src)
-    vim.validate({
-        dest = { dest, "table" },
-        src = { src, "table" },
-    })
+    vim.validate("dest", dest, "table")
+    vim.validate("src", src, "table")
 
     for k, v in pairs(src) do
         if type(v) == "table" then

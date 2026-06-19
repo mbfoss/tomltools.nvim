@@ -1,28 +1,29 @@
-local diagnostics = require("tomltools.lsp.diagnostics")
+-- In-process alternative to init.lua: same M.start/M.stop/M.dump surface,
+-- but the LSP "server" runs as a vim.uv.new_thread worker (thread_server.lua)
+-- instead of a `nvim --headless` subprocess. See thread_client.lua for the
+-- transport and thread_server.lua for why debug_lua (LuaPanda) isn't
+-- supported here.
+local thread_client = require("tomltools.lsp.thread_client")
 
 local M = {}
 
 M.SERVER_NAME    = "tomltools-toml"
 M.SERVER_VERSION = "0.1.0"
 
-local _this_file    = debug.getinfo(1, "S").source:sub(2)
-local SERVER_SCRIPT = vim.fn.fnamemodify(_this_file, ":h") .. "/server.lua"
+--M.diagnostics_ns = vim.api.nvim_create_namespace("tomltools-toml")
 
 ---@type table<integer, {client_id: integer, debug_commands: boolean}>
 local attached = {}
 
 -- ── Public API ────────────────────────────────────────────────────────────────
 
----@class tomltools.LspStartOpts
+---@class tomltools.ThreadLspStartOpts
 ---@field schema         (fun(buf: integer, uri: string): table)?
 ---@field commands       table?   caller-supplied vim.lsp.commands handlers
 ---@field debug_commands boolean? enable debug dump LSP requests
----@field debug_lua      boolean? attach the LuaPanda debugger to the server process (default: false)
----@field debug_lua_host string?  LuaPanda host (default: "127.0.0.1")
----@field debug_lua_port integer? LuaPanda port (default: 8818)
 
 ---@param buf  integer
----@param opts tomltools.LspStartOpts?
+---@param opts tomltools.ThreadLspStartOpts?
 ---@return integer? client_id
 function M.start(buf, opts)
     opts = opts or {}
@@ -40,12 +41,9 @@ function M.start(buf, opts)
 
     local config = {
         name         = M.SERVER_NAME,
-        cmd          = { vim.v.progpath, "--headless", "--noplugin", "-n", "-u", "NONE", "-l", SERVER_SCRIPT },
+        cmd          = thread_client.start,
         init_options = {
             debug_commands = debug_commands,
-            debug_lua      = opts.debug_lua or false,
-            debug_lua_host = opts.debug_lua_host,
-            debug_lua_port = opts.debug_lua_port,
         },
         root_dir     = vim.fn.getcwd(),
 
@@ -74,11 +72,12 @@ function M.stop(buf)
     local entry = attached[buf]
     if not entry then return end
 
-    vim.diagnostic.reset(diagnostics.namespace, buf)
+    --assert(M.diagnostics_ns)
+    --vim.diagnostic.reset(M.diagnostics_ns, buf)
     vim.lsp.buf_detach_client(buf, entry.client_id)
     attached[buf] = nil
 
-    -- Stop the server process only when no buffers remain attached.
+    -- Stop the worker thread only when no buffers remain attached.
     local client = vim.lsp.get_client_by_id(entry.client_id)
     if client and next(client.attached_buffers) == nil then
         client:stop(true)
@@ -89,9 +88,9 @@ end
 -- Only works when opts.debug_commands = true was passed to M.start().
 
 local _dump_methods = {
-    cst          = "tomltools/dumpCst",
-    decode_tree  = "tomltools/dumpDecodeTree",
-    data         = "tomltools/dumpData",
+    cst         = "tomltools/dumpCst",
+    decode_tree = "tomltools/dumpDecodeTree",
+    data        = "tomltools/dumpData",
 }
 
 ---@param buf  integer

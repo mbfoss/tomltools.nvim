@@ -185,4 +185,79 @@ function M.raw_schema_at(root_schema, root_data, dt, id)
   return s -- intentionally not flattened
 end
 
+-- True if `schema.type` is, or includes, `name`.
+---@param schema table?
+---@param name   string
+---@return boolean
+local function has_type(schema, name)
+  local t = schema and schema.type
+  return t == name or (type(t) == "table" and vim.tbl_contains(t, name))
+end
+
+-- The element a header's dotted key path sees when it passes *through* an
+-- array-of-tables: TOML attaches such a sub-table to the array's most recent
+-- entry, so that entry's data drives conditional (if/then) resolution.
+---@param data any
+---@return any
+local function last_element(data)
+  return (type(data) == "table" and #data > 0) and data[#data] or nil
+end
+
+-- Enumerate the [table] section paths reachable from (schema, data). Each level
+-- is flattened against its own data, so conditional branches resolve to the one
+-- the data selects rather than merging mutually-exclusive alternatives. Dotted
+-- keys that cross an array-of-tables resolve against its most recent element.
+---@param schema  table
+---@param data    any
+---@param prefix  string
+---@param results { path: string, node: table }[]
+function M.gather_table_paths(schema, data, prefix, results)
+  local flat = M.flatten(schema, data)
+  if not has_type(flat, "object") or not flat.properties then return end
+  for key, prop in pairs(flat.properties) do
+    local cdata = type(data) == "table" and data[key] or nil
+    local fprop = M.flatten(prop, cdata)
+    local path  = prefix == "" and key or (prefix .. "." .. key)
+    if has_type(fprop, "object") then
+      results[#results + 1] = { path = path, node = fprop }
+      M.gather_table_paths(prop, cdata, path, results)
+    elseif has_type(fprop, "array") and fprop.items then
+      -- Sub-tables of an array-of-tables element use a single [parent.child]
+      -- header, so descend into the items against the most recent element.
+      local elem = last_element(cdata)
+      if has_type(M.flatten(fprop.items, elem), "object") then
+        M.gather_table_paths(fprop.items, elem, path, results)
+      end
+    end
+  end
+end
+
+-- Enumerate the [[array-of-tables]] section paths reachable from (schema, data),
+-- with the same data-aware, branch-selecting resolution as gather_table_paths.
+---@param schema  table
+---@param data    any
+---@param prefix  string
+---@param results { path: string, node: table }[]
+function M.gather_array_table_paths(schema, data, prefix, results)
+  local flat = M.flatten(schema, data)
+  if not flat.properties then return end
+  for key, prop in pairs(flat.properties) do
+    local cdata = type(data) == "table" and data[key] or nil
+    local fprop = M.flatten(prop, cdata)
+    local path  = prefix == "" and key or (prefix .. "." .. key)
+    if has_type(fprop, "array") and fprop.items then
+      local elem  = last_element(cdata)
+      local fitem = M.flatten(fprop.items, elem)
+      if has_type(fitem, "object") then
+        results[#results + 1] = { path = path, node = fitem }
+        M.gather_array_table_paths(fprop.items, elem, path, results)
+      end
+    elseif has_type(fprop, "object") then
+      -- Descend through plain sub-tables so arrays nested under them
+      -- (e.g. [[tasks.value.steps]]) are still discovered.
+      M.gather_array_table_paths(prop, cdata, path, results)
+    end
+  end
+end
+
 return M

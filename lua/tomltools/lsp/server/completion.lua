@@ -87,23 +87,54 @@ local function value_items(schema, open_quote, ctx)
     return items
 end
 
----@param gather_fn   fun(schema: table, prefix: string, out: table[])
----@param root_schema table
----@param root_data   any
----@param typed_keys  string[]
+---@param gather_fn     fun(schema: table, data: any, prefix: string, out: table[])
+---@param root_schema   table
+---@param root_data     any
+---@param typed_keys    string[]
+---@param replace_range lsp.Range   range covering the already-typed dotted path
 ---@return lsp.CompletionItem[]
-local function header_items(gather_fn, root_schema, root_data, typed_keys)
-    local flat  = schema_nav.flatten(root_schema, root_data)
+local function header_items(gather_fn, root_schema, root_data, typed_keys, replace_range)
     local paths = {}
-    gather_fn(flat, "", paths)
+    gather_fn(root_schema, root_data, "", paths)
     local prefix = table.concat(typed_keys, ".")
     local items  = {}
     for _, entry in ipairs(paths) do
         if entry.path:sub(1, #prefix) == prefix and entry.path ~= prefix then
-            items[#items + 1] = { label = entry.path, kind = CK.Module, insertText = entry.path }
+            -- Composite paths contain dots, which most clients treat as word
+            -- boundaries; a bare insertText would only replace the segment after
+            -- the last dot and duplicate the rest. An explicit textEdit spanning
+            -- the whole typed path replaces it cleanly.
+            items[#items + 1] = {
+                label    = entry.path,
+                kind     = CK.Module,
+                textEdit = { range = replace_range, newText = entry.path },
+            }
         end
     end
     return items
+end
+
+-- Position where the dotted key path begins inside a [header] / [[header]],
+-- i.e. immediately after the opening bracket(s). Used as the start of the
+-- completion replacement range. Falls back to the header start if no bracket
+-- token is present.
+---@param cst    tomltools.toml.Cst
+---@param hdr_id integer
+---@return integer row
+---@return integer col
+local function header_keys_start(cst, hdr_id)
+    local last_bracket
+    for _, d in cst:iter_semantic(hdr_id) do
+        if d.kind == K.LBracket then
+            last_bracket = d
+        else
+            break
+        end
+    end
+    if last_bracket then return last_bracket.range[3], last_bracket.range[4] end
+    local hr = cst:range(hdr_id)
+    if hr then return hr[1], hr[2] end
+    return 0, 0
 end
 
 ---@param schema table
@@ -185,16 +216,20 @@ function M.handler(context, params, callback)
     -- [table.header] → suggest valid table paths from schema
     local hdr_id    = cst:ancestor_of_kind(tok_id, K.TableHeader)
     if hdr_id then
-        local typed = vim.tbl_map(function(kd) return kd.value end, cst:get_keys(hdr_id))
-        callback(nil, result(header_items(s_util.gather_table_paths, schema, data, typed)))
+        local typed  = vim.tbl_map(function(kd) return kd.value end, cst:get_keys(hdr_id))
+        local sr, sc = header_keys_start(cst, hdr_id)
+        local rng    = { start = { line = sr, character = sc }, ["end"] = { line = row, character = col } }
+        callback(nil, result(header_items(schema_nav.gather_table_paths, schema, data, typed, rng)))
         return
     end
 
     -- [[array.of.tables]] header → suggest valid AoT paths from schema
     local aot_id = cst:ancestor_of_kind(tok_id, K.AotHeader)
     if aot_id then
-        local typed = vim.tbl_map(function(kd) return kd.value end, cst:get_keys(aot_id))
-        callback(nil, result(header_items(s_util.gather_array_table_paths, schema, data, typed)))
+        local typed  = vim.tbl_map(function(kd) return kd.value end, cst:get_keys(aot_id))
+        local sr, sc = header_keys_start(cst, aot_id)
+        local rng    = { start = { line = sr, character = sc }, ["end"] = { line = row, character = col } }
+        callback(nil, result(header_items(schema_nav.gather_array_table_paths, schema, data, typed, rng)))
         return
     end
 

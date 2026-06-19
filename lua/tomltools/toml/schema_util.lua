@@ -80,46 +80,5 @@ function M.get_ordered_properties(node)
   return result
 end
 
-function M.gather_table_paths(node, current_path, results)
-  if not node or node.type ~= "object" or not node.properties then return end
-
-  for key, prop in pairs(node.properties) do
-    local next_path = current_path == "" and key or (current_path .. "." .. key)
-    local is_obj = prop.type == "object"
-        or (type(prop.type) == "table" and vim.tbl_contains(prop.type, "object"))
-    local is_arr = prop.type == "array"
-        or (type(prop.type) == "table" and vim.tbl_contains(prop.type, "array"))
-    if is_obj then
-      table.insert(results, { path = next_path, node = prop })
-      M.gather_table_paths(prop, next_path, results)
-    elseif is_arr and prop.items then
-      local items_is_obj = prop.items.type == "object"
-          or (type(prop.items.type) == "table" and vim.tbl_contains(prop.items.type, "object"))
-      if items_is_obj then
-        M.gather_table_paths(prop.items, next_path, results)
-      end
-    end
-  end
-end
-
--- Collect paths suitable for [[array-of-tables]] headers.
-function M.gather_array_table_paths(node, current_path, results)
-  if not node or not node.properties then return end
-
-  for key, prop in pairs(node.properties) do
-    local is_array = prop.type == "array"
-        or (type(prop.type) == "table" and vim.tbl_contains(prop.type, "array"))
-    if is_array and prop.items then
-      local items = prop.items
-      local items_is_obj = items.type == "object"
-          or (type(items.type) == "table" and vim.tbl_contains(items.type, "object"))
-      if items_is_obj then
-        local next_path = current_path == "" and key or (current_path .. "." .. key)
-        table.insert(results, { path = next_path, node = items })
-        M.gather_array_table_paths(items, next_path, results)
-      end
-    end
-  end
-end
 
 return M

@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(nvim --headless --noplugin -n -u NONE -l /tmp/repro_completion.lua)",
+      "Bash(nvim --headless --noplugin -n -u NONE -l /tmp/dump_hdr.lua)",
+      "Bash(command -v luacheck)",
+      "Bash(luacheck lua/tomltools/lsp/server/completion.lua lua/tomltools/toml/schema_util.lua --no-color)",
+      "Bash(nvim --headless --noplugin -n -u NONE --cmd 'lua package.path = \"lua/?.lua;\" .. package.path' --cmd 'lua require\\(\"tomltools.lsp.server.completion\"\\); require\\(\"tomltools.toml.schema_util\"\\); print\\(\"OK: modules load\"\\)' --cmd quit)",
+      "Bash(cd /Users/Dev/.config/nvim *)",
+      "Read(//Users/Dev/.config/nvim/**)",
+      "Bash(nvim --headless --noplugin -n -u NONE -l /tmp/repro_user.lua)",
+      "Bash(cat)",
+      "Bash(nvim --headless --noplugin -n -u NONE -l /tmp/dump_schema.lua)",
+      "Bash(nvim --headless --noplugin -n -u NONE -l /tmp/dump_env.lua)",
+      "Bash(nvim --headless --noplugin -n -u NONE -l /tmp/dump_env2.lua)",
+      "Bash(nvim --headless --noplugin -n -u NONE -l /tmp/verify_real.lua)",
+      "Bash(nvim --headless --noplugin -n -u NONE -l /tmp/verify_insert.lua)",
+      "Bash(nvim --headless --noplugin -n -u NONE -l /tmp/verify_dataaware.lua)",
+      "Bash(nvim --headless --noplugin -n -u NONE -l /tmp/dump_debug.lua)",
+      "Bash(nvim --headless --noplugin -n -u NONE --cmd 'lua package.path=\"lua/?.lua;\"..package.path' --cmd 'lua local c=require\\(\"tomltools.lsp.server.completion\"\\); local n=require\\(\"tomltools.toml.schema_nav\"\\); local u=require\\(\"tomltools.toml.schema_util\"\\); assert\\(n.gather_table_paths and n.gather_array_table_paths and not u.gather_table_paths and not u.flatten_union\\); print\\(\"OK: modules load, gather moved to schema_nav\"\\)' --cmd quit)"
+    ],
+    "additionalDirectories": [
+      "/Users/Dev/.config/nvim/pack/plugins/opt/easytasks.nvim/lua/easytasks/types/run"
+    ]
+  }
+}

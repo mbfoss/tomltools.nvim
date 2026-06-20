@@ -211,68 +211,123 @@ local function has_type(schema, name)
   return t == name or (type(t) == "table" and vim.tbl_contains(t, name))
 end
 
--- The element a header's dotted key path sees when it passes *through* an
--- array-of-tables: TOML attaches such a sub-table to the array's most recent
--- entry, so that entry's data drives conditional (if/then) resolution.
----@param data any
----@return any
-local function last_element(data)
-  return (type(data) == "table" and #data > 0) and data[#data] or nil
+---@class tomltools.toml.HeaderPos
+---@field dt  tomltools.toml.DecodeTree
+---@field row integer
+---@field col integer
+
+-- Pick the array element a header at the cursor binds to. A single-bracket
+-- sub-table header ([a.b]) attaches to the most recent [[a]] element *before*
+-- it, so among the decode-tree element children of `array_node` choose the one
+-- whose source starts latest at or before (row, col). Returns the element's
+-- decode-node id and its key ("1", "2", …); nil when there is no decode info.
+---@param pos        tomltools.toml.HeaderPos?
+---@param array_node integer?
+---@return integer? node_id
+---@return string?  key
+local function bound_element(pos, array_node)
+  if not (pos and array_node) then return nil, nil end
+  local best_id, best_key, best_r, best_c
+  for child_id, data in pos.dt._tree:iter_children(array_node) do
+    local sr, sc
+    for _, rg in ipairs(data.ranges or {}) do
+      if not sr or rg[1] < sr or (rg[1] == sr and rg[2] < sc) then sr, sc = rg[1], rg[2] end
+    end
+    if sr and (sr < pos.row or (sr == pos.row and sc <= pos.col))
+        and (not best_r or sr > best_r or (sr == best_r and sc > best_c)) then
+      best_id, best_key, best_r, best_c = child_id, data.key, sr, sc
+    end
+  end
+  return best_id, best_key
+end
+
+-- Resolve the array element (data + decode node) to descend into for a header.
+-- Uses the cursor-bound element when decode info is available, else falls back
+-- to the array's most recent element (last in document order).
+---@param array_data any
+---@param pos        tomltools.toml.HeaderPos?
+---@param array_node integer?
+---@return any element
+---@return integer? element_node
+local function descend_element(array_data, pos, array_node)
+  local enode, ekey = bound_element(pos, array_node)
+  if ekey then
+    local elem = type(array_data) == "table" and array_data[tonumber(ekey)] or nil
+    return elem, enode
+  end
+  local elem = (type(array_data) == "table" and #array_data > 0) and array_data[#array_data] or nil
+  return elem, nil
+end
+
+-- Decode node for `key` under `dt_node`, or nil when there is no decode info.
+---@param pos     tomltools.toml.HeaderPos?
+---@param dt_node integer?
+---@param key     string
+---@return integer?
+local function child_node(pos, dt_node, key)
+  return (pos and dt_node) and pos.dt:get_child_id(dt_node, key) or nil
 end
 
 -- Enumerate the [table] section paths reachable from (schema, data). Each level
 -- is flattened against its own data, so conditional branches resolve to the one
 -- the data selects rather than merging mutually-exclusive alternatives. Dotted
--- keys that cross an array-of-tables resolve against its most recent element.
+-- keys that cross an array-of-tables resolve against the element the cursor's
+-- header binds to (see bound_element), so [tasks.x] sees the right [[tasks]].
 ---@param schema  table
 ---@param data    any
 ---@param prefix  string
 ---@param results { path: string, node: table }[]
-function M.gather_table_paths(schema, data, prefix, results)
+---@param pos     tomltools.toml.HeaderPos?
+---@param dt_node integer?   decode node owning `data` (root id at the top call)
+function M.gather_table_paths(schema, data, prefix, results, pos, dt_node)
   local flat = M.flatten(schema, data)
   if not has_type(flat, "object") or not flat.properties then return end
   for key, prop in pairs(flat.properties) do
     local cdata = type(data) == "table" and data[key] or nil
+    local cnode = child_node(pos, dt_node, key)
     local fprop = M.flatten(prop, cdata)
     local path  = prefix == "" and key or (prefix .. "." .. key)
     if has_type(fprop, "object") then
       results[#results + 1] = { path = path, node = fprop }
-      M.gather_table_paths(prop, cdata, path, results)
+      M.gather_table_paths(prop, cdata, path, results, pos, cnode)
     elseif has_type(fprop, "array") and fprop.items then
       -- Sub-tables of an array-of-tables element use a single [parent.child]
-      -- header, so descend into the items against the most recent element.
-      local elem = last_element(cdata)
+      -- header, so descend into the items against the bound element.
+      local elem, enode = descend_element(cdata, pos, cnode)
       if has_type(M.flatten(fprop.items, elem), "object") then
-        M.gather_table_paths(fprop.items, elem, path, results)
+        M.gather_table_paths(fprop.items, elem, path, results, pos, enode)
       end
     end
   end
 end
 
 -- Enumerate the [[array-of-tables]] section paths reachable from (schema, data),
--- with the same data-aware, branch-selecting resolution as gather_table_paths.
+-- with the same data-aware, position-aware resolution as gather_table_paths.
 ---@param schema  table
 ---@param data    any
 ---@param prefix  string
 ---@param results { path: string, node: table }[]
-function M.gather_array_table_paths(schema, data, prefix, results)
+---@param pos     tomltools.toml.HeaderPos?
+---@param dt_node integer?
+function M.gather_array_table_paths(schema, data, prefix, results, pos, dt_node)
   local flat = M.flatten(schema, data)
   if not flat.properties then return end
   for key, prop in pairs(flat.properties) do
     local cdata = type(data) == "table" and data[key] or nil
+    local cnode = child_node(pos, dt_node, key)
     local fprop = M.flatten(prop, cdata)
     local path  = prefix == "" and key or (prefix .. "." .. key)
     if has_type(fprop, "array") and fprop.items then
-      local elem  = last_element(cdata)
+      local elem, enode = descend_element(cdata, pos, cnode)
       local fitem = M.flatten(fprop.items, elem)
       if has_type(fitem, "object") then
         results[#results + 1] = { path = path, node = fitem }
-        M.gather_array_table_paths(fprop.items, elem, path, results)
+        M.gather_array_table_paths(fprop.items, elem, path, results, pos, enode)
       end
     elseif has_type(fprop, "object") then
       -- Descend through plain sub-tables so arrays nested under them
       -- (e.g. [[tasks.value.steps]]) are still discovered.
-      M.gather_array_table_paths(prop, cdata, path, results)
+      M.gather_array_table_paths(prop, cdata, path, results, pos, cnode)
     end
   end
 end

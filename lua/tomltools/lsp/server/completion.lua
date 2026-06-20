@@ -87,15 +87,17 @@ local function value_items(schema, open_quote, ctx)
     return items
 end
 
----@param gather_fn     fun(schema: table, data: any, prefix: string, out: table[])
+---@param gather_fn     fun(schema: table, data: any, prefix: string, out: table[], pos: table?, dt_node: integer?)
 ---@param root_schema   table
 ---@param root_data     any
 ---@param typed_keys    string[]
 ---@param replace_range lsp.Range   range covering the already-typed dotted path
+---@param pos           tomltools.toml.HeaderPos?  cursor context for array-element binding
+---@param root_dt_id    integer?    decode-tree root id (anchors position-aware descent)
 ---@return lsp.CompletionItem[]
-local function header_items(gather_fn, root_schema, root_data, typed_keys, replace_range)
+local function header_items(gather_fn, root_schema, root_data, typed_keys, replace_range, pos, root_dt_id)
     local paths = {}
-    gather_fn(root_schema, root_data, "", paths)
+    gather_fn(root_schema, root_data, "", paths, pos, root_dt_id)
     local prefix = table.concat(typed_keys, ".")
     local items  = {}
     for _, entry in ipairs(paths) do
@@ -213,13 +215,18 @@ function M.handler(context, params, callback)
     local tok_k     = tok_d and tok_d.kind --[[@as tomltools.toml.CstKind?]]
     local is_trivia = tok_k == K.Whitespace or tok_k == K.Newline or tok_k == K.Comment
 
+    -- Cursor context so the gather binds [a.b] headers to the most recent
+    -- [[a]] element before the cursor (not merely the array's last element).
+    local pos     = { dt = dt, row = row, col = col }
+    local root_dt = dt:root_id()
+
     -- [table.header] → suggest valid table paths from schema
     local hdr_id    = cst:ancestor_of_kind(tok_id, K.TableHeader)
     if hdr_id then
         local typed  = vim.tbl_map(function(kd) return kd.value end, cst:get_keys(hdr_id))
         local sr, sc = header_keys_start(cst, hdr_id)
         local rng    = { start = { line = sr, character = sc }, ["end"] = { line = row, character = col } }
-        callback(nil, result(header_items(schema_nav.gather_table_paths, schema, data, typed, rng)))
+        callback(nil, result(header_items(schema_nav.gather_table_paths, schema, data, typed, rng, pos, root_dt)))
         return
     end
 
@@ -229,7 +236,7 @@ function M.handler(context, params, callback)
         local typed  = vim.tbl_map(function(kd) return kd.value end, cst:get_keys(aot_id))
         local sr, sc = header_keys_start(cst, aot_id)
         local rng    = { start = { line = sr, character = sc }, ["end"] = { line = row, character = col } }
-        callback(nil, result(header_items(schema_nav.gather_array_table_paths, schema, data, typed, rng)))
+        callback(nil, result(header_items(schema_nav.gather_array_table_paths, schema, data, typed, rng, pos, root_dt)))
         return
     end
 

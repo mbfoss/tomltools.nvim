@@ -71,7 +71,7 @@ end
 
 --- Encode a Lua table as TOML text lines.
 ---@param t    table
----@param opts { style: "inline"|"aot"|"table", key: string?, subkey: string?, indent: string? }?
+---@param opts { style: "inline"|"aot"|"table", key: string?, indent: string? }?
 ---@return string[]
 function M.encode(t, opts)
     local text
@@ -80,7 +80,6 @@ function M.encode(t, opts)
     elseif opts.style == "table" then
         text = encoder.encode_table_entry(
             assert(opts.key, "encode: key required for table style"),
-            assert(opts.subkey, "encode: subkey required for table style"),
             t)
     else
         text = encoder.encode_aot_entry(assert(opts.key, "encode: key required for aot style"), t)

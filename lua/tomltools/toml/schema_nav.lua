@@ -216,29 +216,16 @@ end
 ---@field row integer
 ---@field col integer
 
--- Pick the array element a header at the cursor binds to. A single-bracket
--- sub-table header ([a.b]) attaches to the most recent [[a]] element *before*
--- it, so among the decode-tree element children of `array_node` choose the one
--- whose source starts latest at or before (row, col). Returns the element's
--- decode-node id and its key ("1", "2", …); nil when there is no decode info.
+-- Pick the array element a header at the cursor binds to. Delegates to
+-- DecodeTree:bound_element (see there for the binding rule); this wrapper just
+-- guards against missing decode info.
 ---@param pos        tomltools.toml.HeaderPos?
 ---@param array_node integer?
 ---@return integer? node_id
 ---@return string?  key
 local function bound_element(pos, array_node)
   if not (pos and array_node) then return nil, nil end
-  local best_id, best_key, best_r, best_c
-  for child_id, data in pos.dt._tree:iter_children(array_node) do
-    local sr, sc
-    for _, rg in ipairs(data.ranges or {}) do
-      if not sr or rg[1] < sr or (rg[1] == sr and rg[2] < sc) then sr, sc = rg[1], rg[2] end
-    end
-    if sr and (sr < pos.row or (sr == pos.row and sc <= pos.col))
-        and (not best_r or sr > best_r or (sr == best_r and sc > best_c)) then
-      best_id, best_key, best_r, best_c = child_id, data.key, sr, sc
-    end
-  end
-  return best_id, best_key
+  return pos.dt:bound_element(array_node, pos.row, pos.col)
 end
 
 -- Resolve the array element (data + decode node) to descend into for a header.

@@ -71,7 +71,7 @@ function M.find_path(text, row, col)
             if hdr_id then
                 local keys = cst:get_keys(hdr_id)
                 if #keys >= 1 then
-                    local anchor = tok_id
+                    local anchor = tok_id ---@type integer?
                     while anchor and cst:parent_id(anchor) ~= aot_id do
                         anchor = cst:parent_id(anchor)
                     end
@@ -108,6 +108,8 @@ function M.find_path(text, row, col)
         [_K.Whitespace] = true, [_K.Newline] = true,
         [_K.Comment]    = true, [_K.Document] = true,
     }
+
+    ---@type integer?,boolean
     local cur, at_root = tok_id, true
     while cur do
         if not _trivial[cst:kind(cur)] then at_root = false; break end

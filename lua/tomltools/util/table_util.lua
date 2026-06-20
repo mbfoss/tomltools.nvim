@@ -1,6 +1,6 @@
 local M = {}
 
----@param t    table
+---@param t table
 ---@param keys string[]
 ---@return table
 function M.ordered(t, keys)
@@ -13,6 +13,8 @@ function M.ordered(t, keys)
     end
 end
 
+---@param t table
+---@return string[]?
 function M.ordered_keys_of(t)
     if type(t) ~= "table" then return nil end
     local mt = getmetatable(t)

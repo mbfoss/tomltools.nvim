@@ -34,33 +34,6 @@ local function make_action(title, kind, uri, edits)
     return { title = title, kind = kind, edit = { changes = { [uri] = edits } } }
 end
 
--- Extract the source text for a CST range {r1,c1,r2,c2} from the document lines.
--- All coordinates are 0-indexed; c2 is exclusive.
----@param lines string[]
----@param r1    integer
----@param c1    integer
----@param r2    integer
----@param c2    integer
----@return string
-local function range_text(lines, r1, c1, r2, c2)
-    if r1 == r2 then
-        return (lines[r1 + 1] or ""):sub(c1 + 1, c2)
-    end
-    local parts = { (lines[r1 + 1] or ""):sub(c1 + 1) }
-    for r = r1 + 2, r2 do
-        parts[#parts + 1] = lines[r] or ""
-    end
-    parts[#parts + 1] = (lines[r2 + 1] or ""):sub(1, c2)
-    return table.concat(parts, "\n")
-end
-
----@param key string
----@return string
-local function quote_key(key)
-    if key:match("^[A-Za-z0-9_%-]+$") then return key end
-    return '"' .. key:gsub("\\", "\\\\"):gsub('"', '\\"') .. '"'
-end
-
 -- Returns the CST scope node and DecodeTree id for the section containing (row,col),
 -- falling back to document root when the cursor is not inside any section.
 ---@param cst tomltools.toml.Cst
@@ -74,19 +47,6 @@ local function enclosing_scope(cst, dt, row, col)
     local scope_id = cst:ancestor_of_kind(tok_id, K.TableSection, K.AotSection)
     local dt_id    = (scope_id and cst:get_tag(scope_id)) or dt:root_id()
     return scope_id, dt_id
-end
-
--- Returns the KVP node id containing the cursor, or nil. Stops at InlineTable
--- boundaries so that cursor positions inside nested inline tables resolve to
--- the inner KVP rather than escaping to the outer one.
----@param cst   tomltools.toml.Cst
----@param tok_id integer
----@return integer?
-local function kvp_at(cst, tok_id)
-    local anc = cst:ancestor_of_kind(tok_id, K.KeyValuePair, K.InlineTable)
-    if anc and cst:kind(anc) == K.KeyValuePair then return anc end
-    if cst:kind(tok_id) == K.KeyValuePair then return tok_id end
-    return nil
 end
 
 -- ── Action: fill missing required keys ─────────────────────────────────────

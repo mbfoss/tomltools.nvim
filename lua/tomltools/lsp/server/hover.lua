@@ -57,7 +57,7 @@ function M.handler(context, params, callback)
   local tok_id = cst:token_at(row, col)
 
   local dt_id
-  local cur = tok_id
+  local cur = tok_id ---@type integer?
   while cur do
     local d = cst:data(cur)
     if d and d.tag then dt_id = d.tag; break end

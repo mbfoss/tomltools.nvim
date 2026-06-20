@@ -89,18 +89,18 @@ function M.flatten(s, d)
   return out
 end
 
--- Navigate root_schema+root_data to the schema owned by a DecodeTree node.
--- Walks the key segments from root to `id`, navigating schema and data in
+-- Walk the key segments from root to `id`, navigating schema and data in
 -- parallel. Handles arrays (numeric segments → prefixItems then items),
--- objects (→ properties, patternProperties, additionalProperties),
--- and conditional keywords via flatten.
--- Returns a flattened schema table, or nil if the path is not navigable.
+-- objects (→ properties, patternProperties, additionalProperties), and
+-- conditional keywords via flatten. Returns the target schema (not flattened)
+-- and its data, or nil if the path is not navigable.
 ---@param root_schema table
 ---@param root_data   any
 ---@param dt          tomltools.toml.DecodeTree
 ---@param id          integer
----@return table?
-function M.schema_at(root_schema, root_data, dt, id)
+---@return table? schema
+---@return any     data
+local function _navigate(root_schema, root_data, dt, id)
   local parts = dt:key_parts_of(id)
   local s, d  = root_schema, root_data
 
@@ -144,6 +144,19 @@ function M.schema_at(root_schema, root_data, dt, id)
     end
   end
 
+  return s, d
+end
+
+-- Navigate root_schema+root_data to the schema owned by a DecodeTree node.
+-- Returns a flattened schema table, or nil if the path is not navigable.
+---@param root_schema table
+---@param root_data   any
+---@param dt          tomltools.toml.DecodeTree
+---@param id          integer
+---@return table?
+function M.schema_at(root_schema, root_data, dt, id)
+  local s, d = _navigate(root_schema, root_data, dt, id)
+  if s == nil then return nil end
   return M.flatten(s, d)
 end
 
@@ -156,50 +169,7 @@ end
 ---@param id          integer
 ---@return table?
 function M.raw_schema_at(root_schema, root_data, dt, id)
-  local parts = dt:key_parts_of(id)
-  local s, d  = root_schema, root_data
-
-  for _, seg in ipairs(parts) do
-    local flat = M.flatten(s, d)
-    local idx  = tonumber(seg)
-
-    if idx then
-      if flat.prefixItems and flat.prefixItems[idx] then
-        d = type(d) == "table" and d[idx] or nil
-        s = flat.prefixItems[idx]
-      elseif flat.items then
-        d = type(d) == "table" and d[idx] or nil
-        s = flat.items
-      else
-        return nil
-      end
-    elseif flat.properties and flat.properties[seg] then
-      d = type(d) == "table" and d[seg] or nil
-      s = flat.properties[seg]
-    else
-      local matched = false
-      if flat.patternProperties then
-        for pattern, subschema in pairs(flat.patternProperties) do
-          if type(seg) == "string" and seg:match(pattern) then
-            d = type(d) == "table" and d[seg] or nil
-            s = subschema
-            matched = true
-            break
-          end
-        end
-      end
-      if not matched then
-        if type(flat.additionalProperties) == "table" then
-          d = type(d) == "table" and d[seg] or nil
-          s = flat.additionalProperties
-        else
-          return nil
-        end
-      end
-    end
-  end
-
-  return s -- intentionally not flattened
+  return (_navigate(root_schema, root_data, dt, id)) -- intentionally not flattened
 end
 
 -- True if `schema.type` is, or includes, `name`.

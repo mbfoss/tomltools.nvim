@@ -12,7 +12,4 @@ end
 vim.opt.rtp:append(".")
 vim.opt.rtp:append(plenary_dir)
 
---local tomltools = require("tomltools")
---tomltools.setup()
-
 vim.cmd("runtime plugin/plenary.vim")

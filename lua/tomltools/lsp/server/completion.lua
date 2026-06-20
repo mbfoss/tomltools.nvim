@@ -167,6 +167,33 @@ local function schema_for_keys(parent_sch, keys)
     return sch
 end
 
+---@param schema table?
+---@param name   string
+---@return boolean
+local function is_type(schema, name)
+    local t = schema and schema.type
+    return t == name or (type(t) == "table" and vim.tbl_contains(t, name))
+end
+
+-- Resolve a section's schema from its [header] key path when the section has no
+-- decode tag (e.g. a duplicate/invalid header the decoder rejected). Intermediate
+-- array-of-tables levels descend into `items`, mirroring how [a.b] binds to an
+-- [[a]] element. Returns the flattened object schema, or nil when not navigable.
+---@param root_schema table?
+---@param keys        tomltools.toml.CstData[]   header key parts
+---@return table?
+local function schema_for_header_keys(root_schema, keys)
+    if #keys == 0 then return nil end
+    local sch = root_schema
+    for _, kd in ipairs(keys) do
+        local flat = sch and schema_nav.flatten(sch, nil)
+        if not (flat and flat.properties and flat.properties[kd.value]) then return nil end
+        sch = schema_nav.flatten(flat.properties[kd.value], nil)
+        if is_type(sch, "array") and sch.items then sch = schema_nav.flatten(sch.items, nil) end
+    end
+    return sch
+end
+
 ---@param cst    tomltools.toml.Cst
 ---@param kvp_id integer
 ---@param row    integer
@@ -313,12 +340,26 @@ function M.handler(context, params, callback)
     end
 
     -- Cursor is in whitespace between KVPs inside a section or inline table.
-    local scope_id = cst:ancestor_of_kind(tok_id, K.InlineTable, K.TableSection, K.AotSection)
+    -- token_at may land directly on the section composite when the cursor sits in
+    -- its trailing gap (e.g. an empty line after [a.b]); treat that node as the
+    -- scope itself rather than searching only its ancestors.
+    local scope_id = ((tok_k == K.InlineTable or tok_k == K.TableSection or tok_k == K.AotSection) and tok_id)
+        or cst:ancestor_of_kind(tok_id, K.InlineTable, K.TableSection, K.AotSection)
     if scope_id then
         local scope_tag = cst:get_tag(scope_id)
-        -- Inline table not yet decoded → no schema context available.
-        if not scope_tag and cst:kind(scope_id) == K.InlineTable then
-            callback(nil, empty_result); return
+        if not scope_tag then
+            local scope_kind = cst:kind(scope_id)
+            -- Inline table not yet decoded → no schema context available.
+            if scope_kind == K.InlineTable then
+                callback(nil, empty_result); return
+            end
+            -- Section not bound to a decode node (e.g. a duplicate/invalid header
+            -- the decoder rejected): resolve its schema from the header key path
+            -- rather than falling through to top-level keys.
+            local hdr = cst:first_child_of_kind(scope_id, K.TableHeader, K.AotHeader)
+            local sch = hdr and schema_for_header_keys(schema, cst:get_keys(hdr))
+            callback(nil, result(key_items(sch, nil)))
+            return
         end
         callback(nil, result(key_items(schema_for_node(schema, data, dt, scope_tag), dt:child_keys(scope_tag))))
         return

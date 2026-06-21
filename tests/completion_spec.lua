@@ -7,8 +7,8 @@
 -- the real pipeline (parser → decoder → DecodeTree → schema navigation) rather
 -- than mocking the CST, so the tests double as integration coverage.
 
-local parser     = require("tomltools.toml.parser")
-local decoder    = require("tomltools.toml.decoder")
+local parser     = require("tomltools.parser")
+local decoder    = require("tomltools.decoder")
 local completion = require("tomltools.lsp.server.completion")
 local CK         = vim.lsp.protocol.CompletionItemKind
 local IF         = vim.lsp.protocol.InsertTextFormat

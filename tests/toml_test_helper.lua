@@ -2,7 +2,7 @@
 -- Converts decoded TOML data into the tagged-JSON format expected by toml-test.
 -- Uses decoder.decode with opts.type_map=true to get path→literalkind mapping.
 
-local decoder = require("tomltools.toml.decoder")
+local decoder = require("tomltools.decoder")
 
 local M = {}
 

@@ -1,9 +1,9 @@
 local M          = {}
 
 local table_util = require("tomltools.util.table_util")
-local parser     = require("tomltools.toml.parser")
-local DecodeTree = require("tomltools.toml.DecodeTree")
-local Cst        = require("tomltools.toml.Cst")
+local parser     = require("tomltools.parser")
+local DecodeTree = require("tomltools.DecodeTree")
+local Cst        = require("tomltools.Cst")
 
 local K          = Cst.Kind
 
@@ -25,10 +25,10 @@ local literal_kinds = {
     [K.DatetimeLocal] = true, [K.DateLocal]      = true, [K.TimeLocal] = true,
 }
 
----@param cst tomltools.toml.Cst
+---@param cst tomltools.Cst
 ---@param with_type_map boolean?
 ---@return any                       data
----@return tomltools.toml.DecodeTree decode_tree
+---@return tomltools.DecodeTree decode_tree
 ---@return table[]                   errors
 ---@return table<integer,string>?    value_types
 local function evaluate(cst, with_type_map)
@@ -66,7 +66,7 @@ local function evaluate(cst, with_type_map)
     -- Resolve a chain of dotted-key data objects as an implicit table path, starting from
     -- (scope_table, scope_id), navigating keys[from..to].  Returns (table, id) at the leaf,
     -- or (nil, nil) on error.
-    ---@param keys        tomltools.toml.CstData[]
+    ---@param keys        tomltools.CstData[]
     ---@param from        integer
     ---@param to          integer
     ---@param scope_table table
@@ -238,7 +238,7 @@ local function evaluate(cst, with_type_map)
     end
 
     ---@param val_id   integer
-    ---@param val_data tomltools.toml.CstData?
+    ---@param val_data tomltools.CstData?
     ---@param dt_id    integer
     ---@return any
     eval_value = function(val_id, val_data, dt_id)

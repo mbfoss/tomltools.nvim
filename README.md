@@ -81,9 +81,9 @@ lsp.stop(bufnr)
 All pipeline modules are public and usable without the LSP:
 
 ```lua
-local parser  = require("tomltools.toml.parser")
-local decoder = require("tomltools.toml.decoder")
-local encoder = require("tomltools.toml.encoder")
+local parser  = require("tomltools.parser")
+local decoder = require("tomltools.decoder")
+local encoder = require("tomltools.encoder")
 
 -- Parse + decode
 local result = decoder.decode('name = "hello"\nvalue = 42\n')
@@ -93,7 +93,7 @@ print(result.ok, result.data.name)  -- true  hello
 print(encoder.encode({ name = "hello", value = 42 }))
 
 -- Format (round-trips through the CST)
-local fmt    = require("tomltools.toml.formatter")
+local fmt    = require("tomltools.formatter")
 local parsed = parser.parse(text)
 print(fmt.format(parsed.cst))
 ```

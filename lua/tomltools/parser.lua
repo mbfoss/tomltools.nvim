@@ -1,21 +1,21 @@
----@alias tomltools.toml.Range {[1]: integer, [2]: integer, [3]: integer, [4]: integer}
+---@alias tomltools.Range {[1]: integer, [2]: integer, [3]: integer, [4]: integer}
 
----@class tomltools.toml.ParseError
+---@class tomltools.ParseError
 ---@field message string
----@field range tomltools.toml.Range
+---@field range tomltools.Range
 
----@class tomltools.toml.ParseResult
+---@class tomltools.ParseResult
 ---@field ok     boolean
----@field cst    tomltools.toml.Cst
----@field errors tomltools.toml.ParseError[]
+---@field cst    tomltools.Cst
+---@field errors tomltools.ParseError[]
 
 local M    = {}
-local Cst  = require("tomltools.toml.Cst")
-local util = require("tomltools.toml.parser_util")
+local Cst  = require("tomltools.Cst")
+local util = require("tomltools.parser_util")
 local K    = Cst.Kind
 
 ---@param text string
----@return tomltools.toml.ParseResult
+---@return tomltools.ParseResult
 function M.parse(text)
     local errors   = {}
     local cst      = Cst.new()

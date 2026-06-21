@@ -2,12 +2,12 @@
 
 local Tree         = require("tomltools.util.Tree")
 
----@class tomltools.toml.DecodeNodeData
+---@class tomltools.DecodeNodeData
 ---@field key    string        path segment (unescaped)
 ---@field ranges integer[][]   list of {r1,c1,r2,c2} source ranges (one per segment/occurrence)
 ---@field schema table?        resolved schema fragment for this path
 
----@class tomltools.toml.PosIndexEntry
+---@class tomltools.PosIndexEntry
 ---@field r1    integer
 ---@field c1    integer
 ---@field r2    integer
@@ -15,16 +15,16 @@ local Tree         = require("tomltools.util.Tree")
 ---@field id    integer
 ---@field depth integer
 
----@class tomltools.toml.DecodeTree
+---@class tomltools.DecodeTree
 ---@field _tree        tomltools.util.Tree
 ---@field _root_id     integer
 ---@field _id_seq      integer
----@field _pos_index   tomltools.toml.PosIndexEntry[]   flat sorted list, built lazily
+---@field _pos_index   tomltools.PosIndexEntry[]   flat sorted list, built lazily
 ---@field _index_dirty boolean
 local DecodeTree   = {}
 DecodeTree.__index = DecodeTree
 
----@return tomltools.toml.DecodeTree
+---@return tomltools.DecodeTree
 function DecodeTree.new()
     local self    = setmetatable({}, DecodeTree)
     self._tree    = Tree.new()

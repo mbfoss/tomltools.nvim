@@ -1,8 +1,8 @@
-local parser    = require("tomltools.toml.parser")
-local decoder   = require("tomltools.toml.decoder")
-local validator = require("tomltools.toml.validator")
-local inspect   = require("tomltools.toml.inspect")
-local encoder   = require("tomltools.toml.encoder")
+local parser    = require("tomltools.parser")
+local decoder   = require("tomltools.decoder")
+local validator = require("tomltools.validator")
+local inspect   = require("tomltools.inspect")
+local encoder   = require("tomltools.encoder")
 
 local M         = {}
 

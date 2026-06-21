@@ -1,8 +1,8 @@
 -- Inspect a TOML document to find the structural context at a cursor position.
 
-local Cst     = require("tomltools.toml.Cst")
-local parser  = require("tomltools.toml.parser")
-local decoder = require("tomltools.toml.decoder")
+local Cst     = require("tomltools.Cst")
+local parser  = require("tomltools.parser")
+local decoder = require("tomltools.decoder")
 local _K      = Cst.Kind
 
 local M = {}
@@ -13,7 +13,7 @@ local M = {}
 ---@field indent string?       indentation of existing items; present for "array" nodes
 
 ---@param lines  string[]
----@param cst    tomltools.toml.Cst
+---@param cst    tomltools.Cst
 ---@param arr_id integer
 ---@return string
 local function _array_item_indent(lines, cst, arr_id)

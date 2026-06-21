@@ -2,7 +2,7 @@
 -- Shared schema navigation: flatten, schema_at, and cursor resolution via DecodeTree.
 local M         = {}
 
-local validator = require("tomltools.toml.validator")
+local validator = require("tomltools.validator")
 
 local function _deep_merge_tables(dest, src)
   vim.validate("dest", dest, "table")
@@ -96,7 +96,7 @@ end
 -- and its data, or nil if the path is not navigable.
 ---@param root_schema table
 ---@param root_data   any
----@param dt          tomltools.toml.DecodeTree
+---@param dt          tomltools.DecodeTree
 ---@param id          integer
 ---@return table? schema
 ---@return any     data
@@ -151,7 +151,7 @@ end
 -- Returns a flattened schema table, or nil if the path is not navigable.
 ---@param root_schema table
 ---@param root_data   any
----@param dt          tomltools.toml.DecodeTree
+---@param dt          tomltools.DecodeTree
 ---@param id          integer
 ---@return table?
 function M.schema_at(root_schema, root_data, dt, id)
@@ -165,7 +165,7 @@ end
 -- completions from all oneOf branches rather than just the best-matching one.
 ---@param root_schema table
 ---@param root_data   any
----@param dt          tomltools.toml.DecodeTree
+---@param dt          tomltools.DecodeTree
 ---@param id          integer
 ---@return table?
 function M.raw_schema_at(root_schema, root_data, dt, id)
@@ -181,15 +181,15 @@ local function has_type(schema, name)
   return t == name or (type(t) == "table" and vim.tbl_contains(t, name))
 end
 
----@class tomltools.toml.HeaderPos
----@field dt  tomltools.toml.DecodeTree
+---@class tomltools.HeaderPos
+---@field dt  tomltools.DecodeTree
 ---@field row integer
 ---@field col integer
 
 -- Pick the array element a header at the cursor binds to. Delegates to
 -- DecodeTree:bound_element (see there for the binding rule); this wrapper just
 -- guards against missing decode info.
----@param pos        tomltools.toml.HeaderPos?
+---@param pos        tomltools.HeaderPos?
 ---@param array_node integer?
 ---@return integer? node_id
 ---@return string?  key
@@ -202,7 +202,7 @@ end
 -- Uses the cursor-bound element when decode info is available, else falls back
 -- to the array's most recent element (last in document order).
 ---@param array_data any
----@param pos        tomltools.toml.HeaderPos?
+---@param pos        tomltools.HeaderPos?
 ---@param array_node integer?
 ---@return any element
 ---@return integer? element_node
@@ -217,7 +217,7 @@ local function descend_element(array_data, pos, array_node)
 end
 
 -- Decode node for `key` under `dt_node`, or nil when there is no decode info.
----@param pos     tomltools.toml.HeaderPos?
+---@param pos     tomltools.HeaderPos?
 ---@param dt_node integer?
 ---@param key     string
 ---@return integer?
@@ -234,7 +234,7 @@ end
 ---@param data    any
 ---@param prefix  string
 ---@param results { path: string, node: table }[]
----@param pos     tomltools.toml.HeaderPos?
+---@param pos     tomltools.HeaderPos?
 ---@param dt_node integer?   decode node owning `data` (root id at the top call)
 function M.gather_table_paths(schema, data, prefix, results, pos, dt_node)
   local flat = M.flatten(schema, data)
@@ -264,7 +264,7 @@ end
 ---@param data    any
 ---@param prefix  string
 ---@param results { path: string, node: table }[]
----@param pos     tomltools.toml.HeaderPos?
+---@param pos     tomltools.HeaderPos?
 ---@param dt_node integer?
 function M.gather_array_table_paths(schema, data, prefix, results, pos, dt_node)
   local flat = M.flatten(schema, data)

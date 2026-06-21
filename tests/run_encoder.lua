@@ -6,7 +6,7 @@
 local cwd = vim.fn.getcwd()
 vim.opt.rtp:append(vim.fs.joinpath(vim.fn.fnamemodify(cwd, ":h")))
 
-local encoder = require("tomltools.toml.encoder")
+local encoder = require("tomltools.encoder")
 
 local datetime_types = {
     ["datetime"]       = true,

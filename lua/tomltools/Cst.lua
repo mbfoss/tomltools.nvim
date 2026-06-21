@@ -5,21 +5,21 @@
 
 local Tree = require("tomltools.util.Tree")
 
----@class tomltools.toml.CstData
+---@class tomltools.CstData
 ---@field kind  integer
 ---@field text  string?    source text (leaf tokens)
 ---@field value any        parsed value (leaf tokens)
 ---@field range integer[]  {r1, c1, r2, c2}
 ---@field tag   integer?   DecodeTree node id stamped by the decoder
 
----@class tomltools.toml.Cst
+---@class tomltools.Cst
 ---@field _tree tomltools.util.Tree
 ---@field _id   integer
 ---@field _root integer
 local Cst   = {}
 Cst.__index = Cst
 
----@enum tomltools.toml.CstKind
+---@enum tomltools.CstKind
 local Kind = {
     -- Trivia (whitespace-like; skipped by semantic iterators)
     Whitespace    = 1,
@@ -75,7 +75,7 @@ local value_set  = {
 Cst.Kind      = Kind
 Cst.value_set = value_set
 
----@return tomltools.toml.Cst
+---@return tomltools.Cst
 function Cst.new()
     local self  = setmetatable({}, Cst)
     self._tree  = Tree.new()
@@ -97,7 +97,7 @@ function Cst:root_id() return self._root end
 
 -- Add a leaf token under parent_id and return its id.
 ---@param parent_id integer
----@param kind      tomltools.toml.CstKind
+---@param kind      tomltools.CstKind
 ---@param text      string?
 ---@param value     any
 ---@param r1        integer
@@ -115,7 +115,7 @@ end
 
 -- Begin a composite node under parent_id; range is finalized by close().
 ---@param parent_id integer
----@param kind      tomltools.toml.CstKind
+---@param kind      tomltools.CstKind
 ---@param r1        integer
 ---@param c1        integer
 ---@return integer
@@ -135,11 +135,11 @@ function Cst:close(id, r2, c2)
 end
 
 ---@param id integer
----@return tomltools.toml.CstData?
+---@return tomltools.CstData?
 function Cst:data(id)         return self._tree:get_data(id) end
 
 ---@param id integer
----@return tomltools.toml.CstKind?
+---@return tomltools.CstKind?
 function Cst:kind(id)         local d = self._tree:get_data(id); return d and d.kind end
 
 ---@param id integer
@@ -176,14 +176,14 @@ function Cst:get_tag(id)    local d = self._tree:get_data(id); return d and d.ta
 
 -- Iterate all children of parent_id.
 ---@param parent_id integer
----@return fun(): integer?, tomltools.toml.CstData?
+---@return fun(): integer?, tomltools.CstData?
 function Cst:children(parent_id)
     return self._tree:iter_children(parent_id)
 end
 
 -- Iterate children, skipping Whitespace and Newline tokens.
 ---@param parent_id integer
----@return fun(): integer?, tomltools.toml.CstData?
+---@return fun(): integer?, tomltools.CstData?
 function Cst:iter_semantic(parent_id)
     local iter = self._tree:iter_children(parent_id)
     return function()
@@ -197,9 +197,9 @@ end
 
 -- Find the first immediate child whose kind matches any of the given kinds.
 ---@param parent_id integer
----@param ...       tomltools.toml.CstKind
+---@param ...       tomltools.CstKind
 ---@return integer?
----@return tomltools.toml.CstData?
+---@return tomltools.CstData?
 function Cst:first_child_of_kind(parent_id, ...)
     local want = { ... }
     local id   = self._tree:get_first_child_id(parent_id)
@@ -215,7 +215,7 @@ end
 
 -- Walk up from id, returning the nearest ancestor whose kind matches any argument.
 ---@param id integer
----@param ... tomltools.toml.CstKind
+---@param ... tomltools.CstKind
 ---@return integer?
 function Cst:ancestor_of_kind(id, ...)
     local want = { ... }
@@ -232,7 +232,7 @@ end
 
 -- Collect BareKey/QuotedKey data from a header or KVP node (stops at Equals or LBrace).
 ---@param node_id integer
----@return tomltools.toml.CstData[]
+---@return tomltools.CstData[]
 function Cst:get_keys(node_id)
     local keys = {}
     for _, d in self:iter_semantic(node_id) do
@@ -248,7 +248,7 @@ end
 -- Return the first value node id+data after the Equals token in a KVP.
 ---@param kvp_id integer
 ---@return integer?
----@return tomltools.toml.CstData?
+---@return tomltools.CstData?
 function Cst:get_value(kvp_id)
     local after = false
     for id, d in self:iter_semantic(kvp_id) do
@@ -260,7 +260,7 @@ end
 
 -- Iterate children that are value nodes (for arrays: skips brackets, commas, trivia).
 ---@param parent_id integer
----@return fun(): integer?, tomltools.toml.CstData?
+---@return fun(): integer?, tomltools.CstData?
 function Cst:iter_values(parent_id)
     local iter = self._tree:iter_children(parent_id)
     return function()
@@ -273,7 +273,7 @@ function Cst:iter_values(parent_id)
 end
 
 -- Walk every node in the tree, calling handler(id, data, depth).
----@param handler fun(id: integer, data: tomltools.toml.CstData, depth: integer)
+---@param handler fun(id: integer, data: tomltools.CstData, depth: integer)
 function Cst:walk(handler)
     self._tree:walk_tree(handler)
 end

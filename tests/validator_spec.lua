@@ -1,6 +1,6 @@
 ---@diagnostic disable: undefined-global, undefined-field
-local validator  = require("tomltools.toml.validator")
-local DecodeTree = require("tomltools.toml.DecodeTree")
+local validator  = require("tomltools.validator")
+local DecodeTree = require("tomltools.DecodeTree")
 
 local function valid(schema, data)
     local ok, _ = validator.validate(schema, data)

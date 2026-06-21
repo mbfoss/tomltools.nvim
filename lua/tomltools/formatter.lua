@@ -1,5 +1,5 @@
 local M   = {}
-local Cst = require("tomltools.toml.Cst")
+local Cst = require("tomltools.Cst")
 local K   = Cst.Kind
 
 local function needs_quotes(key)
@@ -14,7 +14,7 @@ local function quote_key(key)
 end
 
 
----@param cst tomltools.toml.Cst
+---@param cst tomltools.Cst
 ---@return string
 function M.format(cst)
     local format_value  -- forward decl

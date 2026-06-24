@@ -3,6 +3,8 @@
 -- Uses decoder.decode with opts.type_map=true to get path→literalkind mapping.
 
 local decoder = require("tomltools.decoder")
+local std     = require("tomltools.std")
+local json    = require("json")
 
 local M = {}
 
@@ -17,7 +19,7 @@ local function tagged_from_data(data, id, dt, type_map)
         end
         return arr
     elseif t == "table" then
-        local tbl = vim.empty_dict()
+        local tbl = std.empty_dict()
         for k, v in pairs(data) do
             local child_id = dt:get_child_id(id, k)
             tbl[k] = tagged_from_data(v, child_id, dt, type_map)
@@ -44,7 +46,7 @@ local function tagged_from_data(data, id, dt, type_map)
         return { type = t, value = data }
     end
 
-    return vim.NIL
+    return std.NULL
 end
 
 function M.parse_to_tagged_json(toml_str)
@@ -59,7 +61,7 @@ function M.parse_to_tagged_json(toml_str)
     end
 
     local dt = result.decode_tree
-    return vim.json.encode(tagged_from_data(result.data, dt:root_id(), dt, result.type_map)), nil
+    return json.encode(tagged_from_data(result.data, dt:root_id(), dt, result.type_map)), nil
 end
 
 return M

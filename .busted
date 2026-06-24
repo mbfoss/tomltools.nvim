@@ -1,0 +1,11 @@
+return {
+  default = {
+    -- Make the library importable without installing it: resolve
+    -- require("tomltools...") against ./lua.
+    lpath   = "./lua/?.lua;./lua/?/init.lua;",
+    -- Unit specs live in ./spec; the toml-test integration harness in ./tests
+    -- is driven separately (see the Makefile) and is intentionally not globbed.
+    ROOT    = { "spec" },
+    pattern = "_spec",
+  },
+}

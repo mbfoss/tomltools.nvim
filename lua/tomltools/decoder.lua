@@ -1,6 +1,7 @@
 local M          = {}
 
-local table_util = require("tomltools.util.table_util")
+local table_util = require("tomltools.table_util")
+local std        = require("tomltools.std")
 local parser     = require("tomltools.parser")
 local DecodeTree = require("tomltools.DecodeTree")
 local Cst        = require("tomltools.Cst")
@@ -32,7 +33,7 @@ local literal_kinds = {
 ---@return table[]                   errors
 ---@return table<integer,string>?    value_types
 local function evaluate(cst, with_type_map)
-    local root       = vim.empty_dict()
+    local root       = std.empty_dict()
     local dt         = DecodeTree.new()
     local errors     = {}
     local kind_by_id = {}
@@ -41,7 +42,7 @@ local function evaluate(cst, with_type_map)
     local function set_type(id, t) if type_by_id then type_by_id[id] = t end end
     local function add_err(e)      table.insert(errors, e) end
 
-    local dead_end_table     = vim.empty_dict()
+    local dead_end_table     = std.empty_dict()
     local current_table      = root
     local inline_table_ids   = {}
     local dotted_key_ids     = {}
@@ -106,7 +107,7 @@ local function evaluate(cst, with_type_map)
                 end
                 dt:add_range_by_id(next_id, key_range)
             else
-                cur_table[key] = vim.empty_dict()
+                cur_table[key] = std.empty_dict()
                 track_key(cur_table, key)
                 local new_id   = dt:add_child(cur_id, key, key_range)
                 kind_by_id[new_id] = "Table"
@@ -196,7 +197,7 @@ local function evaluate(cst, with_type_map)
         set_type(dt_id, "table")
         inline_table_ids[dt_id] = true
         cst:set_tag(node_id, dt_id)
-        local result = vim.empty_dict()
+        local result = std.empty_dict()
 
         local function process_inline_kvp(kvp_id, scope_tbl, scope_id)
             if not scope_id then return end
@@ -329,7 +330,7 @@ local function evaluate(cst, with_type_map)
                         invalid = true; break
                     end
                     if not next_id then
-                        current_table[key] = vim.empty_dict()
+                        current_table[key] = std.empty_dict()
                         track_key(current_table, key)
                         next_id = dt:add_child(current_id, key, key_range)
                         kind_by_id[next_id] = "Table"
@@ -395,7 +396,7 @@ local function evaluate(cst, with_type_map)
                     end
                     set_type(next_id, "array")
                     local tbl_arr     = current_table[key]
-                    local next_tbl    = vim.empty_dict()
+                    local next_tbl    = std.empty_dict()
                     table.insert(tbl_arr, next_tbl)
                     local elem_id = dt:add_child(next_id, tostring(#tbl_arr), sec_range)
                     kind_by_id[elem_id] = "Table"
@@ -422,7 +423,7 @@ local function evaluate(cst, with_type_map)
                             invalid = true; break
                         end
                         if not next_id then
-                            current_table[key] = vim.empty_dict()
+                            current_table[key] = std.empty_dict()
                             track_key(current_table, key)
                             next_id = dt:add_child(current_id, key, key_data.range or sec_range)
                             kind_by_id[next_id] = "Table"

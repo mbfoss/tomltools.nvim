@@ -1,126 +1,176 @@
-# tomltools.nvim
+# tomltools
 
-A Neovim plugin providing a full TOML processing pipeline and a schema-driven LSP server. Designed to be embedded in other plugins — supply a JSON Schema and get diagnostics, completions, hover, formatting, and document symbols.
+A dependency-free, **pure-Lua** TOML processing library: a lossless parser, a
+decoder to Lua tables, an encoder back to TOML, a formatter, and a JSON Schema
+(Draft 2020-12) validator with source ranges.
 
-**Requires Neovim >= 0.10.**
+No C extensions, no external dependencies. Runs on **Lua 5.1+ and
+LuaJIT**. Verified against the official [toml-test](https://github.com/toml-lang/toml-test)
+suite (TOML 1.1).
 
 ---
 
 ## Features
 
-- Hand-written recursive descent TOML parser producing a lossless Concrete Syntax Tree (CST)
+- Hand-written recursive-descent TOML parser producing a lossless Concrete
+  Syntax Tree (CST)
 - Full TOML 1.1 decode, encode, and format pipeline
-- JSON Schema Draft 2020-12 validator (partial subset)
-- Schema-driven LSP server running as a headless Neovim subprocess:
-  - Diagnostics (parse errors, decode errors, schema validation)
-  - Completions (keys, values, enum suggestions, `[table]` / `[[aot]]` headers)
-  - Hover (title, description, type, default)
-  - Formatting
-  - Document symbols (full hierarchy: nested children, schema-aware SymbolKinds — `Module` for top-level sections, `Object`/`Array`/`String`/`Number`/`Boolean` for nested nodes, value previews as detail)
-  - Code actions (extensible — see below)
-- Per-document schema: the schema factory receives `(bufnr, uri)` and can return a different schema per file
-- Debug dump commands (CST, DecodeTree, raw data) — off by default
+- JSON Schema Draft 2020-12 validator (partial subset) reporting errors with
+  source ranges
+- Schema-aware navigation helpers (`schema_nav`, `schema_util`) that resolve
+  `allOf`/`anyOf`/`oneOf`/`if-then-else` against the decoded document
+- Structural path lookup at a `(row, col)` position — useful for editor tooling
+  built on top of the library
 
 ---
 
 ## Installation
 
-```lua
--- lazy.nvim
-{ "mbfoss/tomltools.nvim" }
+### LuaRocks
+
+```sh
+luarocks install --server=https://luarocks.org/dev tomltools
+# or, from a checkout:
+luarocks make
 ```
 
-Any other manager works. For manual installation, place the directory under `pack/*/opt/` and call `packadd tomltools.nvim`.
+### Manual
+
+Copy the `lua/` directory onto your `package.path`:
+
+```lua
+package.path = "/path/to/tomltools/lua/?.lua;/path/to/tomltools/lua/?/init.lua;" .. package.path
+```
 
 ---
 
 ## Quick start
 
-Wire the LSP to a filetype autocmd:
-
 ```lua
-vim.api.nvim_create_autocmd("FileType", {
-    pattern = { "toml" },
-    callback = function(ev)
-        require("tomltools.lsp").start(ev.buf, {
-            schema = function(bufnr, uri)
-                if uri:match("pyproject%.toml$") then
-                    return require("my_plugin.schemas.pyproject")
-                end
-                return require("my_plugin.schemas.default")
-            end,
-        })
-    end,
-})
+local toml = require("tomltools")
+
+-- Parse + decode (and optionally validate against a JSON Schema)
+local result = toml.parse([[
+title = "demo"
+
+[server]
+host = "localhost"
+port = 8080
+]])
+
+print(result.ok)               --> true
+print(result.data.title)       --> demo
+print(result.data.server.port) --> 8080
+
+-- Errors are normalised to { range = { r1, c1, r2, c2 }, message = "..." }
+for _, e in ipairs(result.errors) do
+    print(e.message)
+end
 ```
 
-Manual attach / detach:
+### Validating against a schema
 
 ```lua
-local lsp = require("tomltools.lsp")
-lsp.start(bufnr, { schema = function(buf, uri) return my_schema end })
-lsp.stop(bufnr)
+local schema = {
+    type = "object",
+    properties = {
+        title  = { type = "string" },
+        server = {
+            type       = "object",
+            properties = { port = { type = "integer", minimum = 1, maximum = 65535 } },
+            required   = { "port" },
+        },
+    },
+    required = { "title" },
+}
+
+local result = toml.parse(text, schema)
+-- result.errors now also includes schema violations, each with a source range
 ```
+
+### Decoding
+
+```lua
+local data, errors = toml.decode('name = "hello"\nvalue = 42\n')
+-- data is the Lua table, or nil + a list of errors on invalid TOML
+```
+
+### Encoding
+
+```lua
+-- Whole document: returns a TOML string
+toml.encode({ name = "hello", value = 42, server = { host = "localhost", port = 8080 } })
+
+-- A single snippet as lines, for inserting into an existing document:
+toml.encode_entry({ host = "localhost", port = 8080 }, { style = "table", key = "server" })
+toml.encode_entry({ name = "build" }, { style = "aot", key = "task" })
+```
+
+### Formatting
+
+```lua
+local formatted, errors = toml.format(text)  -- normalised TOML, or nil + errors
+```
+
+### Top-level API (`require("tomltools")`)
+
+| Function | Returns | Description |
+|---|---|---|
+| `parse(text, schema?)` | `{ ok, data, errors }` | Parse, decode, and optionally validate. Errors carry source ranges. |
+| `decode(text)` | `data?, errors?` | Decode TOML to a Lua table. |
+| `encode(value)` | `string` | Encode a Lua table to a complete TOML document. |
+| `encode_entry(t, opts?)` | `string[]` | Encode a single snippet as lines. `opts.style` is `"inline"` (default), `"table"`, or `"aot"`. |
+| `format(text)` | `string?, errors?` | Reformat a TOML document (preserves comments). |
+| `validate(data, schema)` | `ok, errors` | Validate an already-decoded value against a JSON Schema. |
+| `find_path(text, row, col)` | `PathNode[]?` | Structural TOML path at a 0-indexed position. |
 
 ---
 
-## LSP options
+## Lower-level modules
 
-`lsp.start(bufnr, opts)` accepts:
-
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `schema` | `fun(buf, uri): table` | `nil` | Schema factory, called once per buffer on attach |
-| `commands` | `table` | `nil` | Extra `vim.lsp.commands` handlers registered at startup |
-| `debug_commands` | `boolean` | `false` | Enable debug dump requests |
-
----
-
-## TOML pipeline
-
-All pipeline modules are public and usable without the LSP:
+Every pipeline stage is a standalone module:
 
 ```lua
-local parser  = require("tomltools.parser")
-local decoder = require("tomltools.decoder")
-local encoder = require("tomltools.encoder")
+local parser    = require("tomltools.parser")     -- text  -> CST
+local decoder   = require("tomltools.decoder")    -- CST   -> Lua table (+ DecodeTree)
+local encoder   = require("tomltools.encoder")    -- table -> TOML text
+local formatter = require("tomltools.formatter")  -- CST   -> formatted TOML
+local validator = require("tomltools.validator")  -- (schema, data) -> ok, errors
+```
 
--- Parse + decode
-local result = decoder.decode('name = "hello"\nvalue = 42\n')
-print(result.ok, result.data.name)  -- true  hello
-
--- Encode
-print(encoder.encode({ name = "hello", value = 42 }))
-
--- Format (round-trips through the CST)
-local fmt    = require("tomltools.formatter")
+```lua
+-- Parse to a CST, then format it (round-trips through the CST)
 local parsed = parser.parse(text)
-print(fmt.format(parsed.cst))
+print(formatter.format(parsed.cst))
+
+-- Decode directly
+local decoded = decoder.decode(text)
+print(decoded.ok, decoded.data)
 ```
 
----
-
-## Schema
-
-`opts.schema` returns a [JSON Schema](https://json-schema.org/) table. Supported keywords: `type`, `enum`, `const`, string/numeric/array/object constraints, `allOf`, `anyOf`, `oneOf`, `not`, `if/then/else`, `dependentRequired`, `dependentSchemas`.
-
-Conditional branches (`if/then`, `oneOf`) are resolved at runtime against the decoded document, so completions and validation react to the actual values in the file.
+Empty TOML tables decode to objects, not arrays. Internally this is tracked with
+`require("tomltools.std").empty_dict()` / `std.islist()` — small pure-Lua
+helpers that distinguish an empty object from an empty array.
 
 ---
 
-## Code actions
+## Testing
 
-`lsp/code_action.lua` iterates `context.code_action_providers` — a list of functions, each with signature `(context, params) -> lsp.CodeAction[]`. To add actions, populate this list in the server before the handler runs. The typical approach is to extend the server-side context construction in `server.lua` to read providers from `initializationOptions`.
+Unit tests use [busted](https://lunarmodules.github.io/busted/); the conformance
+suite uses [toml-test](https://github.com/toml-lang/toml-test).
 
----
-
-## Debug dumps
-
-When `debug_commands = true` is passed to `lsp.start()`:
-
-```lua
-local lsp = require("tomltools.lsp")
-lsp.dump(bufnr, "cst")          -- opens scratch buffer with CST dump
-lsp.dump(bufnr, "decode_tree")  -- DecodeTree dump
-lsp.dump(bufnr, "data")         -- decoded Lua table (vim.inspect)
+```sh
+make unit_test   # busted unit suite (spec/), pure Lua
+make toml_test   # official toml-test conformance suite (TOML 1.1)
+make test        # both
 ```
+
+The toml-test harness (`tests/run_decoder.lua`, `tests/run_encoder.lua`) runs
+under LuaJIT by default for Lua 5.1 numeric semantics; override with
+`make toml_test LUA=lua5.1`.
+
+---
+
+## License
+
+MIT

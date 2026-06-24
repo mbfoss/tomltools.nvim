@@ -113,7 +113,7 @@ describe("schema_nav.flatten", function()
             dependentSchemas = {
                 ["1"] = { properties = { extra = {} } },
             },
-        }, { "elem" }) -- vim.islist → true, so dependentSchemas must be skipped
+        }, { "elem" }) -- islist → true, so dependentSchemas must be skipped
         assert.is_nil(r.properties)
     end)
 end)

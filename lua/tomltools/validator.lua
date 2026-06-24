@@ -19,6 +19,8 @@
 
 local M = {}
 
+local std = require("tomltools.std")
+
 ---@class loop.json.ValidationError
 ---@field node_id integer?
 ---@field err_msg string
@@ -66,15 +68,15 @@ local function _validate(schema, data, node_id, dt, errors)
             elseif t == "integer" and type(data) == "number" and data == math.floor(data) then ok = true
             elseif t == "number" and type(data) == "number" then ok = true
             elseif t == "string" and type(data) == "string" then ok = true
-            elseif t == "array" and vim.islist(data) then ok = true
-            elseif t == "object" and type(data) == "table" and not vim.islist(data) then ok = true
+            elseif t == "array" and std.islist(data) then ok = true
+            elseif t == "object" and type(data) == "table" and not std.islist(data) then ok = true
             end
             if ok then break end
         end
         if not ok then
-            local expected = vim.tbl_map(function (v) return v == "object" and "table" or v end, allowed)
+            local expected = std.tbl_map(function (v) return v == "object" and "table" or v end, allowed)
             local got = type(data) ---@type string
-            if got == "table" then got = vim.islist(data) and "array" or "table"
+            if got == "table" then got = std.islist(data) and "array" or "table"
             elseif data == nil then got = "null" end
             add_error(errors, node_id, ("expected %s, got %s"):format(table.concat(expected, " or "), got))
         end
@@ -128,7 +130,7 @@ local function _validate(schema, data, node_id, dt, errors)
     end
 
     -- object keywords — apply whenever data is an object, regardless of schema.type
-    if type(data) == "table" and not vim.islist(data) then
+    if type(data) == "table" and not std.islist(data) then
         local props         = schema.properties or {}
         local required      = schema.required or {}
         local pattern_props = schema.patternProperties or {}
@@ -207,7 +209,7 @@ local function _validate(schema, data, node_id, dt, errors)
     end
 
     -- array keywords — apply whenever data is an array, regardless of schema.type
-    if vim.islist(data) then
+    if std.islist(data) then
         -- prefixItems: positional schemas (Draft 2020-12)
         local prefix_len = 0
         if schema.prefixItems then
@@ -307,7 +309,7 @@ local function _validate(schema, data, node_id, dt, errors)
             end
         end
         if not any_pass and best_errors then
-            vim.list_extend(errors, best_errors)
+            std.list_extend(errors, best_errors)
         end
     end
 
@@ -326,7 +328,7 @@ local function _validate(schema, data, node_id, dt, errors)
             end
         end
         if pass_count == 0 then
-            if best_errors then vim.list_extend(errors, best_errors) end
+            if best_errors then std.list_extend(errors, best_errors) end
         elseif pass_count > 1 then
             add_error(errors, node_id,
                 ("value matches %d oneOf schemas, expected exactly 1"):format(pass_count))

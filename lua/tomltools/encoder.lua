@@ -1,4 +1,5 @@
-local table_util = require("tomltools.util.table_util")
+local table_util = require("tomltools.table_util")
+local std        = require("tomltools.std")
 
 local M = {}
 
@@ -82,7 +83,7 @@ end
 ---@param t table
 ---@return boolean
 local function is_array(t)
-    return vim.islist(t)
+    return std.islist(t)
 end
 
 ---@param t table

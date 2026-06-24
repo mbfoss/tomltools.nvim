@@ -1,12 +1,18 @@
 -- tests/run_encoder.lua
--- Run with: nvim -l tests/run_encoder.lua
+-- Run with: luajit tests/run_encoder.lua   (or any Lua 5.1+ interpreter)
 -- Reads toml-test tagged JSON from stdin, writes TOML to stdout.
 -- Exits non-zero on error.
 
-local cwd = vim.fn.getcwd()
-vim.opt.rtp:append(vim.fs.joinpath(vim.fn.fnamemodify(cwd, ":h")))
+-- Resolve module paths relative to this script so it works from any cwd.
+local here = (arg[0] or "tests/run_encoder.lua"):match("^(.*[/\\])") or "./"
+package.path = here .. "?.lua;"
+    .. here .. "../lua/?.lua;"
+    .. here .. "../lua/?/init.lua;"
+    .. package.path
 
 local encoder = require("tomltools.encoder")
+local std     = require("tomltools.std")
+local json    = require("json")
 
 local datetime_types = {
     ["datetime"]       = true,
@@ -45,13 +51,13 @@ local function untag(v)
         end
     end
 
-    if vim.islist(v) then
+    if std.islist(v) then
         local arr = {}
         for i = 1, #v do arr[i] = untag(v[i]) end
         return arr
     end
 
-    local tbl = vim.empty_dict()
+    local tbl = std.empty_dict()
     for k, child in pairs(v) do
         tbl[k] = untag(child)
     end
@@ -59,7 +65,7 @@ local function untag(v)
 end
 
 local raw = io.read("*a")
-local ok, tagged = pcall(vim.json.decode, raw, { luanil = { object = true, array = true } })
+local ok, tagged = pcall(json.decode, raw, { luanil = { object = true, array = true } })
 if not ok then
     io.stderr:write("run_encoder: JSON parse error: " .. tostring(tagged) .. "\n")
     os.exit(1)

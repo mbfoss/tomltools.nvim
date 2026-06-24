@@ -1,6 +1,6 @@
 -- tomltools/toml/DecodeTree.lua
 
-local Tree         = require("tomltools.util.Tree")
+local Tree         = require("tomltools.Tree")
 
 ---@class tomltools.DecodeNodeData
 ---@field key    string        path segment (unescaped)
@@ -16,7 +16,7 @@ local Tree         = require("tomltools.util.Tree")
 ---@field depth integer
 
 ---@class tomltools.DecodeTree
----@field _tree        tomltools.util.Tree
+---@field _tree        tomltools.Tree
 ---@field _root_id     integer
 ---@field _id_seq      integer
 ---@field _pos_index   tomltools.PosIndexEntry[]   flat sorted list, built lazily

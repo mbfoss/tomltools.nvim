@@ -3,17 +3,18 @@
 local M         = {}
 
 local validator = require("tomltools.validator")
+local std       = require("tomltools.std")
 
 local function _deep_merge_tables(dest, src)
-  vim.validate("dest", dest, "table")
-  vim.validate("src", src, "table")
+  std.validate("dest", dest, "table")
+  std.validate("src", src, "table")
 
   for k, v in pairs(src) do
     if type(v) == "table" then
-      if type(dest[k]) == "table" and not vim.islist(v) then
+      if type(dest[k]) == "table" and not std.islist(v) then
         _deep_merge_tables(dest[k], v)
       else
-        dest[k] = vim.deepcopy(v)
+        dest[k] = std.deepcopy(v)
       end
     else
       dest[k] = v
@@ -75,7 +76,7 @@ function M.flatten(s, d)
     end
   end
 
-  if s.dependentSchemas and type(d) == "table" and not vim.islist(d) then
+  if s.dependentSchemas and type(d) == "table" and not std.islist(d) then
     for prop, subschema in pairs(s.dependentSchemas) do
       if d[prop] ~= nil then
         _deep_merge_tables(out, M.flatten(subschema, d))
@@ -178,7 +179,7 @@ end
 ---@return boolean
 local function has_type(schema, name)
   local t = schema and schema.type
-  return t == name or (type(t) == "table" and vim.tbl_contains(t, name))
+  return t == name or (type(t) == "table" and std.tbl_contains(t, name))
 end
 
 ---@class tomltools.HeaderPos

@@ -3,7 +3,7 @@
 -- leaf nodes have:  kind, text (source slice), value (parsed), range {r1,c1,r2,c2}
 -- composite nodes have: kind, range {r1,c1,r2,c2}  (no text/value)
 
-local Tree = require("tomltools.util.Tree")
+local Tree = require("tomltools.Tree")
 
 ---@class tomltools.CstData
 ---@field kind  integer
@@ -13,7 +13,7 @@ local Tree = require("tomltools.util.Tree")
 ---@field tag   integer?   DecodeTree node id stamped by the decoder
 
 ---@class tomltools.Cst
----@field _tree tomltools.util.Tree
+---@field _tree tomltools.Tree
 ---@field _id   integer
 ---@field _root integer
 local Cst   = {}

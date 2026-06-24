@@ -1,4 +1,6 @@
--- tomltools/toml/schema_util.lua
+-- tomltools/schema_util.lua
+local std = require("tomltools.std")
+
 local M = {}
 
 -- True when `target` starts with `prefix` (case-insensitive); empty/nil prefix matches all.
@@ -54,7 +56,7 @@ function M.get_default_toml(node)
     if type(node.default) == "string" then
       return string.format("%q", node.default)
     elseif type(node.default) == "table" then
-      return (vim.inspect(node.default):gsub("%s+", ""))
+      return (std.inspect(node.default):gsub("%s+", ""))
     end
     return tostring(node.default)
   end

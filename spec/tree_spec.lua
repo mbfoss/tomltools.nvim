@@ -1,7 +1,5 @@
 ---@diagnostic disable: undefined-global, undefined-field
-require("plenary.busted")
-
-local Tree = require("tomltools.util.Tree")
+local Tree = require("tomltools.Tree")
 
 -- Collect (id, depth) pairs in walk order.
 local function walk_order(tree)
@@ -23,7 +21,7 @@ local function walk_ids(tree)
     return out
 end
 
-describe("tomltools.util.Tree", function()
+describe("tomltools.Tree", function()
     -- ──────────────────────────────────────────────────────────────────────────
     -- construction / basics
     -- ──────────────────────────────────────────────────────────────────────────

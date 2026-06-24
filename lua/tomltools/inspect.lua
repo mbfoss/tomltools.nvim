@@ -3,6 +3,7 @@
 local Cst     = require("tomltools.Cst")
 local parser  = require("tomltools.parser")
 local decoder = require("tomltools.decoder")
+local std     = require("tomltools.std")
 local _K      = Cst.Kind
 
 local M = {}
@@ -39,7 +40,7 @@ function M.find_path(text, row, col)
     if not parsed.cst then return nil end
     local decoded = decoder.decode(parsed.cst)
     local cst, dt = parsed.cst, decoded.decode_tree
-    local lines   = vim.split(text, "\n", { plain = true })
+    local lines   = std.split(text, "\n", { plain = true })
 
     local tok_id = cst:token_at(row, col)
 

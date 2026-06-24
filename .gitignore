@@ -1,3 +1,7 @@
 .luarc.json
 CLAUDE.md
 /.vscode
+.DS_Store
+*.rock
+/lua_modules
+/.luarocks

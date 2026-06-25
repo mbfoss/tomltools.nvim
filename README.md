@@ -17,8 +17,6 @@ suite (TOML 1.1).
 - Full TOML 1.1 decode, encode, and format pipeline
 - JSON Schema Draft 2020-12 validator (partial subset) reporting errors with
   source ranges
-- Schema-aware navigation helpers (`schema_nav`, `schema_util`) that resolve
-  `allOf`/`anyOf`/`oneOf`/`if-then-else` against the decoded document
 - Structural path lookup at a `(row, col)` position — useful for editor tooling
   built on top of the library
 
@@ -50,7 +48,7 @@ package.path = "/path/to/tomltools/lua/?.lua;/path/to/tomltools/lua/?/init.lua;"
 local toml = require("tomltools")
 
 -- Parse + decode (and optionally validate against a JSON Schema)
-local result = toml.parse([[
+local data, errors = toml.decode([[
 title = "demo"
 
 [server]
@@ -58,9 +56,8 @@ host = "localhost"
 port = 8080
 ]])
 
-print(result.ok)               --> true
-print(result.data.title)       --> demo
-print(result.data.server.port) --> 8080
+print(data.title)       --> demo
+print(data.server.port) --> 8080
 
 -- Errors are normalised to { range = { r1, c1, r2, c2 }, message = "..." }
 for _, e in ipairs(result.errors) do
@@ -84,15 +81,8 @@ local schema = {
     required = { "title" },
 }
 
-local result = toml.parse(text, schema)
--- result.errors now also includes schema violations, each with a source range
-```
-
-### Decoding
-
-```lua
-local data, errors = toml.decode('name = "hello"\nvalue = 42\n')
--- data is the Lua table, or nil + a list of errors on invalid TOML
+local data, errors = toml.decode(text, schema)
+-- errors now also includes schema violations, each with a source range
 ```
 
 ### Encoding

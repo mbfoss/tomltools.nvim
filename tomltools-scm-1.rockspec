@@ -7,7 +7,7 @@ source = {
 }
 
 description = {
-   summary  = "Pure-Lua TOML 1.1 parser, decoder, encoder, and JSON-Schema validator",
+   summary  = "Pure-Lua TOML 1.1 parser, decoder, encoder, formatter, and JSON-Schema validator",
    detailed = [[
       tomltools is a dependency-free, pure-Lua library for working with TOML:
       a lossless CST parser, a decoder to Lua tables, an encoder back to TOML,

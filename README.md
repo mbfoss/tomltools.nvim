@@ -1,6 +1,6 @@
 # tomltools
 
-A dependency-free, **pure-Lua** TOML processing library: a lossless parser, a
+A dependency-free, **pure-Lua** TOML processing library: a
 decoder to Lua tables, an encoder back to TOML, a formatter, and a JSON Schema
 (Draft 2020-12) validator with source ranges.
 
@@ -12,8 +12,6 @@ suite (TOML 1.1).
 
 ## Features
 
-- Hand-written recursive-descent TOML parser producing a lossless Concrete
-  Syntax Tree (CST)
 - Full TOML 1.1 decode, encode, and format pipeline
 - JSON Schema Draft 2020-12 validator (partial subset) reporting errors with
   source ranges

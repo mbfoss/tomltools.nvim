@@ -4,22 +4,46 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: read
+
 jobs:
   publish:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Install Lua and LuaRocks
-        uses: leafo/gh-actions-lua@v11
-        with:
-          luaVersion: "5.4"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.4 luarocks
 
-      - uses: leafo/gh-actions-luarocks@v5
+      - name: Verify installation
+        run: |
+          lua -v
+          luarocks --version
+                
+      - name: Install Lua JSON library
+        run: |
+          sudo luarocks install dkjson
 
-      - name: Upload rockspec
+      - name: Find rockspec
+        run: |
+          ls -la
+          find . -maxdepth 1 -name "*.rockspec"
+
+      - name: Upload to LuaRocks
         env:
           LUAROCKS_API_KEY: ${{ secrets.LUAROCKS_API_KEY }}
         run: |
-          luarocks upload *.rockspec --api-key="$LUAROCKS_API_KEY"
+          ROCKSPEC=$(find . -maxdepth 1 -name "*.rockspec" | head -n 1)
+
+          if [ -z "$ROCKSPEC" ]; then
+            echo "No .rockspec file found."
+            exit 1
+          fi
+
+          echo "Uploading $ROCKSPEC"
+          luarocks upload "$ROCKSPEC" --api-key="$LUAROCKS_API_KEY"

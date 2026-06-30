@@ -1,6 +1,6 @@
-rockspec_format = "3.0"
 package = "tomltools"
-version = "scm-1"
+version = "1.0.0-1"
+rockspec_format = "3.0"
 
 source = {
    url = "git+https://github.com/mbfoss/tomltools.git",
